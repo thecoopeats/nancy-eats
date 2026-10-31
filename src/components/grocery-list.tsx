@@ -15,7 +15,7 @@ export type GroceryRow = {
 };
 
 const button =
-  "min-h-12 rounded-xl border-2 border-border bg-card px-4 text-lg font-bold hover:border-accent disabled:opacity-50";
+  "min-h-[48px] rounded-xl border-2 border-border bg-card px-4 text-lg font-bold hover:border-accent disabled:opacity-50";
 
 /** The list for the store: big rows to tick off, grouped by aisle. */
 export function GroceryList({ items }: { items: GroceryRow[] }) {
@@ -58,7 +58,7 @@ export function GroceryList({ items }: { items: GroceryRow[] }) {
         {aisles.map((aisle) => (
           <section key={aisle} className="space-y-3 break-inside-avoid">
             <h2 className="text-2xl font-bold print:text-lg">{aisle}</h2>
-            <ul className="divide-y-2 divide-border rounded-2xl border-2 border-border bg-card print:divide-y-0 print:border-0">
+            <ul className="divide-y-2 divide-border rounded-3xl border-2 border-border bg-card shadow-soft print:divide-y-0 print:border-0">
               {optimistic
                 .filter((i) => i.aisle === aisle)
                 .map((i) => {
