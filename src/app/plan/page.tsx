@@ -12,7 +12,7 @@ import { MEALS, plannedMeals } from "@/db/schema";
 import { addDays, formatDay, isDay, today } from "@/lib/dates";
 import { difficulty, formatMinutes } from "@/lib/recipe";
 import { requireUser } from "@/lib/require-user";
-import { COUNTRIES } from "@/lib/spoonacular";
+import { COUNTRIES, DAILY_LIMIT_MESSAGE } from "@/lib/spoonacular";
 
 const CHOICES = [
   ["similar", "Similar ingredients"],
@@ -45,6 +45,14 @@ export default async function PlanPage(props: PageProps<"/plan">) {
   return (
     <div className="space-y-10">
       <PageTitle Icon={CalendarDays} tint="bg-lavender">Meal plan</PageTitle>
+
+      {sp.problem && (
+        <p role="alert" className="rounded-2xl border-2 border-accent bg-card p-5 text-xl">
+          {sp.problem === "limit"
+            ? DAILY_LIMIT_MESSAGE
+            : "We couldn't find recipes just now. Please try again in a few minutes."}
+        </p>
+      )}
 
       <details className="no-print rounded-3xl border-2 border-border bg-card shadow-soft p-5" open={rows.length === 0}>
         <summary className="cursor-pointer text-2xl font-bold">Plan my meals</summary>

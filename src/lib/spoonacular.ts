@@ -5,6 +5,20 @@ import type { Recipe } from "./recipe";
 
 const BASE = "https://api.spoonacular.com";
 
+/** Spoonacular answers 402 when the plan's daily allowance of searches is used up. It resets each day. */
+export class DailyLimitError extends Error {
+  constructor() {
+    super("Spoonacular daily limit reached");
+  }
+}
+
+export const DAILY_LIMIT_MESSAGE =
+  "We've used up today's recipe searches. Searching will work again tomorrow. Your favorites, meal plan and grocery list still work.";
+
+export function isDailyLimit(err: unknown): boolean {
+  return err instanceof DailyLimitError || (err instanceof Error && err.message.includes("daily limit"));
+}
+
 async function call<T>(path: string, params: Record<string, string | number | boolean | undefined>): Promise<T> {
   const key = process.env.SPOONACULAR_API_KEY;
   if (!key) throw new Error("SPOONACULAR_API_KEY is not set");
@@ -14,6 +28,7 @@ async function call<T>(path: string, params: Record<string, string | number | bo
   }
   url.searchParams.set("apiKey", key);
   const res = await fetch(url);
+  if (res.status === 402) throw new DailyLimitError();
   if (!res.ok) throw new Error(`Spoonacular ${path} failed: ${res.status}`);
   return res.json() as Promise<T>;
 }

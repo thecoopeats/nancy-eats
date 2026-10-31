@@ -6,6 +6,8 @@ import { RecipeResults } from "@/components/recipe-results";
 import { requireUser } from "@/lib/require-user";
 import {
   COUNTRIES,
+  DAILY_LIMIT_MESSAGE,
+  isDailyLimit,
   MEAL_TYPES,
   searchRecipes,
   toSearchParams,
@@ -101,7 +103,11 @@ async function Results({ filters }: { filters: SearchFilters }) {
     data = await searchRecipes(params);
   } catch (err) {
     console.error(err);
-    return <p className="text-xl">Recipe search isn&apos;t working right now. Please try again later.</p>;
+    return (
+      <p className="rounded-2xl border-2 border-border bg-card p-5 text-xl">
+        {isDailyLimit(err) ? DAILY_LIMIT_MESSAGE : "Recipe search isn't working right now. Please try again in a few minutes."}
+      </p>
+    );
   }
 
   if (data.tiles.length === 0) {
