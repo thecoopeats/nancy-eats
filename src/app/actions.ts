@@ -41,27 +41,11 @@ export async function setFavorite(spoonacularId: number, isFavorite: boolean) {
   refresh();
 }
 
-export async function markMade(spoonacularId: number) {
-  const user = await requireUser();
-  const row = await savedCopy(user.id, spoonacularId);
-  await db.update(savedRecipes).set({ lastMadeAt: new Date() }).where(eq(savedRecipes.id, row.id));
-  refresh();
-}
-
 export async function setSavedFavorite(savedId: string, isFavorite: boolean) {
   const user = await requireUser();
   await db
     .update(savedRecipes)
     .set({ isFavorite })
-    .where(and(eq(savedRecipes.id, savedId), eq(savedRecipes.userId, user.id)));
-  refresh();
-}
-
-export async function markSavedMade(savedId: string) {
-  const user = await requireUser();
-  await db
-    .update(savedRecipes)
-    .set({ lastMadeAt: new Date() })
     .where(and(eq(savedRecipes.id, savedId), eq(savedRecipes.userId, user.id)));
   refresh();
 }
