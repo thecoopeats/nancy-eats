@@ -99,9 +99,13 @@ export default async function PlanPage(props: PageProps<"/plan">) {
               ))}
             </select>
           </label>
+          <label className={checkBox}>
+            <input type="checkbox" name="replace" defaultChecked={rows.length > 0} className="size-6 accent-[var(--accent)]" />
+            Replace meals I already planned for these days
+          </label>
           <p className="text-lg text-muted">
-            We&apos;ll suggest a recipe for each empty spot. Meals you&apos;ve already planned stay as they are. To choose
-            your own, open any recipe and tap &ldquo;Add to meal plan&rdquo;.
+            Leave that unticked to keep the meals you&apos;ve planned and only fill empty spots. To choose your own, open
+            any recipe and tap &ldquo;Add to meal plan&rdquo;.
           </p>
           <Button type="submit">Suggest recipes</Button>
         </form>

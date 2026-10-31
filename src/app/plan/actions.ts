@@ -60,7 +60,9 @@ export async function fillPlan(formData: FormData) {
   if (start < today()) start = today();
   const end = addDays(start, days - 1);
 
-  const existing = await db.query.plannedMeals.findMany({
+  // Normally only empty spots are filled. "Replace" lets new choices (like a country) take over the whole range.
+  const replace = formData.get("replace") === "on";
+  const existing = replace ? [] : await db.query.plannedMeals.findMany({
     where: and(eq(plannedMeals.userId, user.id), gte(plannedMeals.date, start), lte(plannedMeals.date, end)),
     columns: { date: true, meal: true },
   });

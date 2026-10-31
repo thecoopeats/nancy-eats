@@ -202,10 +202,16 @@ export type Suggestion = RecipeTile & { mainIngredient: string | null };
 // Things nearly every kitchen has, which make a poor "shared" ingredient.
 const PANTRY = /\b(salt|pepper|oil|water|sugar|flour|butter|garlic|onion|vinegar|baking|vanilla|spice|seasoning|broth|stock|egg|milk)\b/i;
 
-async function suggestOnce(meal: Meal, count: number, extra: Record<string, string | number | undefined>): Promise<Suggestion[]> {
+async function suggestOnce(
+  meal: Meal,
+  count: number,
+  extra: Record<string, string | number | undefined>,
+  anyTime = false,
+): Promise<Suggestion[]> {
   const data = await call<SearchResponse>("/recipes/complexSearch", {
     ...extra,
     ...PLAN_TYPE[meal],
+    ...(anyTime ? { maxReadyTime: undefined } : {}),
     number: Math.min(count, 20),
     sort: "random",
     instructionsRequired: true,
@@ -239,17 +245,19 @@ export async function suggestRecipes(meal: Meal, count: number, opts: SuggestOpt
     base.includeIngredients = p.includeIngredients;
     base.excludeIngredients = p.excludeIngredients;
   }
-  const attempts: Record<string, string | number | undefined>[] = [];
+  type Attempt = { extra: Record<string, string | number | undefined>; anyTime?: boolean };
+  const attempts: Attempt[] = [];
   if (opts.sharedIngredient) {
-    attempts.push({ ...base, includeIngredients: [base.includeIngredients, opts.sharedIngredient].filter(Boolean).join(",") });
+    attempts.push({ extra: { ...base, includeIngredients: [base.includeIngredients, opts.sharedIngredient].filter(Boolean).join(",") } });
   }
-  attempts.push(base);
-  if (f) attempts.push({});
+  attempts.push({ extra: base });
+  // Keep the chosen filters (like a country) as long as possible: drop the cooking-time limit before dropping them.
+  if (f) attempts.push({ extra: base, anyTime: true }, { extra: {} });
 
   const found: Suggestion[] = [];
-  for (const extra of attempts) {
+  for (const { extra, anyTime } of attempts) {
     if (found.length >= count) break;
-    const more = await suggestOnce(meal, count - found.length + 2, extra);
+    const more = await suggestOnce(meal, count - found.length + 2, extra, anyTime);
     for (const r of more) if (found.length < count && !found.some((x) => x.id === r.id)) found.push(r);
   }
   return found;
