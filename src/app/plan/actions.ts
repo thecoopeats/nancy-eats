@@ -7,7 +7,7 @@ import { db } from "@/db";
 import { MEALS, plannedMeals, savedRecipes, type Meal } from "@/db/schema";
 import { addDays, isDay, today } from "@/lib/dates";
 import { requireUser } from "@/lib/require-user";
-import { COUNTRIES, getRecipe, similarByIngredients, suggestRecipes, type RecipeTile, type SearchFilters } from "@/lib/spoonacular";
+import { COUNTRIES, getRecipe, isDailyLimit, similarByIngredients, suggestRecipes, type RecipeTile, type SearchFilters } from "@/lib/spoonacular";
 
 type Slot = { date: string; meal: Meal };
 type PlanRecipe = {
@@ -60,7 +60,9 @@ export async function fillPlan(formData: FormData) {
   if (start < today()) start = today();
   const end = addDays(start, days - 1);
 
-  const existing = await db.query.plannedMeals.findMany({
+  // Normally only empty spots are filled. "Replace" lets new choices (like a country) take over the whole range.
+  const replace = formData.get("replace") === "on";
+  const existing = replace ? [] : await db.query.plannedMeals.findMany({
     where: and(eq(plannedMeals.userId, user.id), gte(plannedMeals.date, start), lte(plannedMeals.date, end)),
     columns: { date: true, meal: true },
   });
@@ -80,27 +82,34 @@ export async function fillPlan(formData: FormData) {
   // With "similar ingredients", the first recipe picked sets an ingredient the rest of the plan shares.
   let shared: string | undefined;
 
-  for (const meal of meals) {
-    const empty: Slot[] = [];
-    for (let i = 0; i < days; i++) {
-      const date = addDays(start, i);
-      if (!taken.has(`${date}|${meal}`)) empty.push({ date, meal });
+  let problem: string | null = null;
+  try {
+    for (const meal of meals) {
+      const empty: Slot[] = [];
+      for (let i = 0; i < days; i++) {
+        const date = addDays(start, i);
+        if (!taken.has(`${date}|${meal}`)) empty.push({ date, meal });
+      }
+      if (empty.length === 0) continue;
+      let ideas: RecipeTile[] = [];
+      if (similar && !shared) {
+        const [first] = await suggestRecipes(meal, 1, { filters });
+        shared = first?.mainIngredient ?? undefined;
+        const rest = empty.length > 1 ? await suggestRecipes(meal, empty.length - 1, { filters, sharedIngredient: shared }) : [];
+        ideas = [first, ...rest.filter((r) => r.id !== first?.id)].filter(Boolean);
+      } else {
+        ideas = await suggestRecipes(meal, empty.length, { filters, sharedIngredient: similar ? shared : undefined });
+      }
+      await Promise.all(empty.slice(0, ideas.length).map((slot, i) => putInSlot(user.id, slot, fromTile(ideas[i]))));
     }
-    if (empty.length === 0) continue;
-    let ideas: RecipeTile[] = [];
-    if (similar && !shared) {
-      const [first] = await suggestRecipes(meal, 1, { filters });
-      shared = first?.mainIngredient ?? undefined;
-      const rest = empty.length > 1 ? await suggestRecipes(meal, empty.length - 1, { filters, sharedIngredient: shared }) : [];
-      ideas = [first, ...rest.filter((r) => r.id !== first?.id)].filter(Boolean);
-    } else {
-      ideas = await suggestRecipes(meal, empty.length, { filters, sharedIngredient: similar ? shared : undefined });
-    }
-    await Promise.all(empty.slice(0, ideas.length).map((slot, i) => putInSlot(user.id, slot, fromTile(ideas[i]))));
+  } catch (err) {
+    console.error(err);
+    problem = isDailyLimit(err) ? "limit" : "error";
   }
 
   revalidatePath("/plan");
-  redirect(planView(start, days));
+  const view = planView(start, days);
+  redirect(problem ? `${view}${view.includes("?") ? "&" : "?"}problem=${problem}` : view);
 }
 
 async function ownMeal(userId: string, id: string) {

@@ -143,3 +143,13 @@ export const groceryItems = pgTable(
   },
   (t) => [uniqueIndex("grocery_item_user_key").on(t.userId, t.key)],
 );
+
+/**
+ * Saved answers from the recipe service, shared by everyone, so the same recipe or search
+ * isn't paid for twice. Each row expires so recipes stay fresh.
+ */
+export const apiCache = pgTable("api_cache", {
+  key: text("key").primaryKey(),
+  value: jsonb("value").notNull(),
+  expiresAt: timestamp("expiresAt", { mode: "date" }).notNull(),
+});

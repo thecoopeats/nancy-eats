@@ -1,9 +1,24 @@
 import { cacheLife } from "next/cache";
 import type { Meal } from "@/db/schema";
+import { cacheKey, cached, save } from "./api-cache";
 import { cleanSteps } from "./clean-steps";
 import type { Recipe } from "./recipe";
 
 const BASE = "https://api.spoonacular.com";
+
+/** Spoonacular answers 402 when the plan's daily allowance of searches is used up. It resets each day. */
+export class DailyLimitError extends Error {
+  constructor() {
+    super("Spoonacular daily limit reached");
+  }
+}
+
+export const DAILY_LIMIT_MESSAGE =
+  "We've used up today's recipe searches. Searching will work again tomorrow. Your favorites, meal plan and grocery list still work.";
+
+export function isDailyLimit(err: unknown): boolean {
+  return err instanceof DailyLimitError || (err instanceof Error && err.message.includes("daily limit"));
+}
 
 async function call<T>(path: string, params: Record<string, string | number | boolean | undefined>): Promise<T> {
   const key = process.env.SPOONACULAR_API_KEY;
@@ -14,6 +29,7 @@ async function call<T>(path: string, params: Record<string, string | number | bo
   }
   url.searchParams.set("apiKey", key);
   const res = await fetch(url);
+  if (res.status === 402) throw new DailyLimitError();
   if (!res.ok) throw new Error(`Spoonacular ${path} failed: ${res.status}`);
   return res.json() as Promise<T>;
 }
@@ -95,19 +111,42 @@ export function toSearchParams(f: SearchFilters) {
 
 type SearchResponse = {
   totalResults: number;
-  results: { id: number; title: string; image?: string; readyInMinutes?: number; extendedIngredients?: { name?: string; nameClean?: string | null; aisle?: string | null }[] }[];
+  results: (SpoonRecipe & { id: number; title: string })[];
 };
+
+// How long saved answers last. Recipes rarely change; popular searches change slowly.
+const RECIPE_DAYS = 30;
+const SEARCH_DAYS = 3;
+
+const recipeKey = (id: number) => `recipe:${id}`;
+
+/**
+ * Searches already return everything a recipe page needs, so save each recipe as it arrives.
+ * Opening it afterwards then costs nothing.
+ */
+async function keepRecipes(results: SearchResponse["results"]) {
+  await save(
+    results.filter((r) => r.analyzedInstructions?.some((b) => b.steps.length > 0)).map((r) => ({ key: recipeKey(r.id), value: r })),
+    RECIPE_DAYS,
+  );
+}
 
 export async function searchRecipes(params: SpoonSearchParams) {
   "use cache";
   cacheLife("hours");
-  const data = await call<SearchResponse>("/recipes/complexSearch", {
+  const request = {
     ...params,
     number: PAGE_SIZE,
     sort: params.query ? undefined : "popularity",
     instructionsRequired: true,
     addRecipeInformation: true,
+    addRecipeInstructions: true,
     fillIngredients: true,
+  };
+  const data = await cached(cacheKey("search", request), SEARCH_DAYS, async () => {
+    const fresh = await call<SearchResponse>("/recipes/complexSearch", request);
+    await keepRecipes(fresh.results);
+    return fresh;
   });
   return {
     total: data.totalResults,
@@ -173,7 +212,10 @@ function normalize(r: SpoonRecipe, sourceUrl?: string): Recipe {
 export async function getRecipe(id: number): Promise<Recipe> {
   "use cache";
   cacheLife("days");
-  return normalize(await call<SpoonRecipe>(`/recipes/${id}/information`, { includeNutrition: false }));
+  const raw = await cached(recipeKey(id), RECIPE_DAYS, () =>
+    call<SpoonRecipe>(`/recipes/${id}/information`, { includeNutrition: false }),
+  );
+  return normalize(raw);
 }
 
 /** Read a recipe from any web page and simplify it to ingredients and steps. */
@@ -202,16 +244,24 @@ export type Suggestion = RecipeTile & { mainIngredient: string | null };
 // Things nearly every kitchen has, which make a poor "shared" ingredient.
 const PANTRY = /\b(salt|pepper|oil|water|sugar|flour|butter|garlic|onion|vinegar|baking|vanilla|spice|seasoning|broth|stock|egg|milk)\b/i;
 
-async function suggestOnce(meal: Meal, count: number, extra: Record<string, string | number | undefined>): Promise<Suggestion[]> {
+async function suggestOnce(
+  meal: Meal,
+  count: number,
+  extra: Record<string, string | number | undefined>,
+  anyTime = false,
+): Promise<Suggestion[]> {
   const data = await call<SearchResponse>("/recipes/complexSearch", {
     ...extra,
     ...PLAN_TYPE[meal],
+    ...(anyTime ? { maxReadyTime: undefined } : {}),
     number: Math.min(count, 20),
     sort: "random",
     instructionsRequired: true,
     addRecipeInformation: true,
+    addRecipeInstructions: true,
     fillIngredients: true,
   });
+  await keepRecipes(data.results);
   return data.results.map((r) => ({
     id: r.id,
     title: r.title,
@@ -239,36 +289,41 @@ export async function suggestRecipes(meal: Meal, count: number, opts: SuggestOpt
     base.includeIngredients = p.includeIngredients;
     base.excludeIngredients = p.excludeIngredients;
   }
-  const attempts: Record<string, string | number | undefined>[] = [];
+  type Attempt = { extra: Record<string, string | number | undefined>; anyTime?: boolean };
+  const attempts: Attempt[] = [];
   if (opts.sharedIngredient) {
-    attempts.push({ ...base, includeIngredients: [base.includeIngredients, opts.sharedIngredient].filter(Boolean).join(",") });
+    attempts.push({ extra: { ...base, includeIngredients: [base.includeIngredients, opts.sharedIngredient].filter(Boolean).join(",") } });
   }
-  attempts.push(base);
-  if (f) attempts.push({});
+  attempts.push({ extra: base });
+  // Keep the chosen filters (like a country) as long as possible: drop the cooking-time limit before dropping them.
+  if (f) attempts.push({ extra: base, anyTime: true }, { extra: {} });
 
   const found: Suggestion[] = [];
-  for (const extra of attempts) {
+  for (const { extra, anyTime } of attempts) {
     if (found.length >= count) break;
-    const more = await suggestOnce(meal, count - found.length + 2, extra);
+    const more = await suggestOnce(meal, count - found.length + 2, extra, anyTime);
     for (const r of more) if (found.length < count && !found.some((x) => x.id === r.id)) found.push(r);
   }
   return found;
 }
 
-/** Meal ideas for right now, refreshed every hour. */
-export async function mealIdeas(meal: Meal): Promise<RecipeTile[]> {
+/** Meal ideas for right now. The same three for everyone all day, so the home page costs almost nothing. */
+export async function mealIdeas(meal: Meal, day: string): Promise<RecipeTile[]> {
   "use cache";
   cacheLife("hours");
-  return suggestRecipes(meal, 3);
+  return cached(`ideas:${meal}:${day}`, 1, () => suggestRecipes(meal, 3));
 }
 
 /** A different recipe that uses many of the same ingredients, so groceries go further. */
 export async function similarByIngredients(ingredients: string[], excludeId: number | null): Promise<RecipeTile | null> {
   const names = ingredients.filter(Boolean).slice(0, 5);
   if (names.length === 0) return null;
-  const found = await call<{ id: number; title: string; image?: string; usedIngredientCount: number; missedIngredientCount: number }[]>(
-    "/recipes/findByIngredients",
-    { ingredients: names.join(","), number: 8, ranking: 1, ignorePantry: true },
+  const request = { ingredients: names.join(","), number: 8, ranking: 1, ignorePantry: true };
+  const found = await cached(cacheKey("byIngredients", request), SEARCH_DAYS, () =>
+    call<{ id: number; title: string; image?: string; usedIngredientCount: number; missedIngredientCount: number }[]>(
+      "/recipes/findByIngredients",
+      request,
+    ),
   );
   const options = found.filter((r) => r.id !== excludeId);
   if (options.length === 0) return null;

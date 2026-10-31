@@ -4,7 +4,7 @@ import { Suspense } from "react";
 import { MealChip } from "@/components/meal-label";
 import { RecipeTile } from "@/components/recipe-tile";
 import type { Meal } from "@/db/schema";
-import { currentHour } from "@/lib/dates";
+import { currentHour, today } from "@/lib/dates";
 import { mealIdeas } from "@/lib/spoonacular";
 import { auth } from "@/auth";
 
@@ -76,7 +76,7 @@ async function Ideas() {
   const meal: Meal = hour < 10 ? "breakfast" : hour < 15 ? "lunch" : "dinner";
   let tiles;
   try {
-    tiles = await mealIdeas(meal);
+    tiles = await mealIdeas(meal, today());
   } catch (err) {
     console.error(err);
     return null;
