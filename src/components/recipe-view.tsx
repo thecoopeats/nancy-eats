@@ -4,7 +4,17 @@ import { PrintButton } from "@/components/print-button";
 import { difficulty, formatMinutes, type Recipe } from "@/lib/recipe";
 
 /** The simplified recipe: picture, ingredients, numbered steps. `actions` adds the buttons above. */
-export function RecipeView({ recipe, actions, note }: { recipe: Recipe; actions?: ReactNode; note?: ReactNode }) {
+export function RecipeView({
+  recipe,
+  actions,
+  note,
+  planner,
+}: {
+  recipe: Recipe;
+  actions?: ReactNode;
+  note?: ReactNode;
+  planner?: ReactNode;
+}) {
   const level = difficulty(recipe.readyInMinutes, recipe.ingredients.length);
   return (
     <article className="space-y-8">
@@ -20,6 +30,7 @@ export function RecipeView({ recipe, actions, note }: { recipe: Recipe; actions?
           {actions}
           <PrintButton />
         </div>
+        {planner && <div className="no-print">{planner}</div>}
       </header>
       {recipe.image && (
         // eslint-disable-next-line @next/next/no-img-element -- images come from many recipe sites

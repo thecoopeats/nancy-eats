@@ -1,6 +1,7 @@
 import { and, eq } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import { markMade, setFavorite } from "@/app/actions";
+import { AddToPlan } from "@/components/add-to-plan";
 import { ActionButton } from "@/components/action-button";
 import { MadeNote } from "@/components/made-note";
 import { RecipeView } from "@/components/recipe-view";
@@ -28,6 +29,7 @@ export default async function RecipePage(props: PageProps<"/recipes/[id]">) {
     <RecipeView
       recipe={recipe}
       note={saved?.lastMadeAt && <MadeNote date={saved.lastMadeAt} />}
+      planner={<AddToPlan target={{ spoonacularId: id }} />}
       actions={
         <>
           <form action={setFavorite.bind(null, id, !saved?.isFavorite)}>

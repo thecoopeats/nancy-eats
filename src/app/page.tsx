@@ -1,4 +1,10 @@
 import Link from "next/link";
+import { Suspense } from "react";
+import { MealChip } from "@/components/meal-label";
+import { RecipeTile } from "@/components/recipe-tile";
+import type { Meal } from "@/db/schema";
+import { currentHour } from "@/lib/dates";
+import { mealIdeas } from "@/lib/spoonacular";
 import { auth } from "@/auth";
 
 const tiles = [
@@ -41,6 +47,35 @@ export default async function Home() {
             <h2 className="text-2xl font-bold">{t.title}</h2>
             <p className="mt-2 text-lg text-muted">{t.text}</p>
           </Link>
+        ))}
+      </div>
+      <Suspense fallback={null}>
+        <Ideas />
+      </Suspense>
+    </section>
+  );
+}
+
+/** "Don't know what to cook?" Three ideas for the next meal, refreshed hourly. */
+async function Ideas() {
+  const hour = currentHour();
+  const meal: Meal = hour < 10 ? "breakfast" : hour < 15 ? "lunch" : "dinner";
+  let tiles;
+  try {
+    tiles = await mealIdeas(meal);
+  } catch (err) {
+    console.error(err);
+    return null;
+  }
+  if (tiles.length === 0) return null;
+  return (
+    <section className="space-y-4">
+      <h2 className="flex flex-wrap items-center gap-3 text-3xl font-bold">
+        Need an idea? <MealChip meal={meal} />
+      </h2>
+      <div className="grid gap-5 sm:grid-cols-3">
+        {tiles.map((t) => (
+          <RecipeTile key={t.id} href={`/recipes/${t.id}`} {...t} />
         ))}
       </div>
     </section>

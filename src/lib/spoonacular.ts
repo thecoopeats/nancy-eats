@@ -1,4 +1,5 @@
 import { cacheLife } from "next/cache";
+import type { Meal } from "@/db/schema";
 import type { Recipe } from "./recipe";
 
 const BASE = "https://api.spoonacular.com";
@@ -168,4 +169,60 @@ export async function getRecipe(id: number): Promise<Recipe> {
 /** Read a recipe from any web page and simplify it to ingredients and steps. */
 export async function extractRecipe(url: string): Promise<Recipe> {
   return normalize(await call<SpoonRecipe>("/recipes/extract", { url, analyze: true, forceExtraction: true }), url);
+}
+
+// ---- Suggestions for the planner ----
+
+
+const PLAN_TYPE: Record<Meal, { type: string; maxReadyTime?: number }> = {
+  breakfast: { type: "breakfast", maxReadyTime: 45 },
+  lunch: { type: "main course", maxReadyTime: 30 },
+  dinner: { type: "main course", maxReadyTime: 75 },
+};
+
+/** A handful of random, well-liked recipes for one meal. Not cached, so each call brings new ideas. */
+export async function suggestRecipes(meal: Meal, count: number): Promise<RecipeTile[]> {
+  const data = await call<SearchResponse>("/recipes/complexSearch", {
+    ...PLAN_TYPE[meal],
+    number: Math.min(count, 20),
+    sort: "random",
+    instructionsRequired: true,
+    addRecipeInformation: true,
+    fillIngredients: true,
+  });
+  return data.results.map((r) => ({
+    id: r.id,
+    title: r.title,
+    image: r.image ?? null,
+    readyInMinutes: r.readyInMinutes ?? null,
+    ingredientCount: r.extendedIngredients?.length ?? 0,
+  }));
+}
+
+/** Meal ideas for right now, refreshed every hour. */
+export async function mealIdeas(meal: Meal): Promise<RecipeTile[]> {
+  "use cache";
+  cacheLife("hours");
+  return suggestRecipes(meal, 3);
+}
+
+/** A different recipe that uses many of the same ingredients, so groceries go further. */
+export async function similarByIngredients(ingredients: string[], excludeId: number | null): Promise<RecipeTile | null> {
+  const names = ingredients.filter(Boolean).slice(0, 5);
+  if (names.length === 0) return null;
+  const found = await call<{ id: number; title: string; image?: string; usedIngredientCount: number; missedIngredientCount: number }[]>(
+    "/recipes/findByIngredients",
+    { ingredients: names.join(","), number: 8, ranking: 1, ignorePantry: true },
+  );
+  const options = found.filter((r) => r.id !== excludeId);
+  if (options.length === 0) return null;
+  const choice = options[Math.floor(Math.random() * Math.min(options.length, 4))];
+  const full = await getRecipe(choice.id);
+  return {
+    id: choice.id,
+    title: full.title,
+    image: full.image ?? choice.image ?? null,
+    readyInMinutes: full.readyInMinutes,
+    ingredientCount: full.ingredients.length,
+  };
 }

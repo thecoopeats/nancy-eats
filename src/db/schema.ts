@@ -1,5 +1,6 @@
 import {
   boolean,
+  date,
   integer,
   jsonb,
   pgTable,
@@ -90,4 +91,29 @@ export const savedRecipes = pgTable(
   createdAt: timestamp("createdAt", { mode: "date" }).notNull().defaultNow(),
   },
   (t) => [uniqueIndex("saved_recipe_user_spoonacular").on(t.userId, t.spoonacularId)],
+);
+
+export const MEALS = ["breakfast", "lunch", "dinner"] as const;
+export type Meal = (typeof MEALS)[number];
+
+/** One meal on the calendar: a day, a meal slot, and the recipe for it. */
+export const plannedMeals = pgTable(
+  "planned_meal",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    userId: text("userId")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    date: date("date", { mode: "string" }).notNull(),
+    meal: text("meal").$type<Meal>().notNull(),
+    spoonacularId: integer("spoonacularId"),
+    savedRecipeId: text("savedRecipeId").references(() => savedRecipes.id, { onDelete: "cascade" }),
+    title: text("title").notNull(),
+    image: text("image"),
+    readyInMinutes: integer("readyInMinutes"),
+    ingredientCount: integer("ingredientCount").notNull().default(0),
+  },
+  (t) => [uniqueIndex("planned_meal_slot").on(t.userId, t.date, t.meal)],
 );
