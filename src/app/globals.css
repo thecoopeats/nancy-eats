@@ -1,18 +1,25 @@
 @import "tailwindcss";
 
-/* Large, high-contrast, calm defaults: built to be easy to read. */
+/* Cozy pastel look with large, high-contrast text: built to be easy to read. */
 :root {
-  --background: #fffdf8;
-  --foreground: #1f1d1a;
-  --muted: #5c574f;
-  --accent: #b4441f;
+  --background: #fcf7f2;
+  --foreground: #3b2f36;
+  --muted: #6a5a62;
+  --accent: #a3486a;
   --accent-ink: #ffffff;
-  --card: #ffffff;
-  --border: #e4ddd0;
-  /* Meal colors, used on the calendar later */
-  --breakfast: #e8a317;
-  --lunch: #3f8f4f;
-  --dinner: #3a5fa8;
+  --card: #fffdfb;
+  --border: #ecdcdf;
+  /* Soft pastel tints for backgrounds, tiles and icons */
+  --blush: #fbe3ea;
+  --peach: #fde7d6;
+  --sage: #e0efdf;
+  --lavender: #ebe5f7;
+  --butter: #fcf1cc;
+  --sky: #dfedf8;
+  /* Meal colors: each meal has its own pastel, icon and word */
+  --breakfast: #f1c453;
+  --lunch: #86c096;
+  --dinner: #a796d8;
 }
 
 @theme inline {
@@ -26,7 +33,15 @@
   --color-breakfast: var(--breakfast);
   --color-lunch: var(--lunch);
   --color-dinner: var(--dinner);
+  --color-blush: var(--blush);
+  --color-peach: var(--peach);
+  --color-sage: var(--sage);
+  --color-lavender: var(--lavender);
+  --color-butter: var(--butter);
+  --color-sky: var(--sky);
   --font-sans: var(--font-readable);
+  --font-heading: var(--font-elegant);
+  --shadow-soft: 0 2px 4px rgb(120 80 95 / 0.05), 0 8px 24px rgb(120 80 95 / 0.07);
 }
 
 html {
@@ -35,8 +50,20 @@ html {
 
 body {
   background: var(--background);
+  background-image: radial-gradient(circle at 0% 0%, var(--blush) 0, transparent 45%),
+    radial-gradient(circle at 100% 30%, var(--lavender) 0, transparent 40%),
+    radial-gradient(circle at 20% 100%, var(--sage) 0, transparent 45%);
+  background-attachment: fixed;
   color: var(--foreground);
   line-height: 1.6;
+}
+
+/* Elegant serif headings; body text stays in the extra-readable font. */
+h1,
+h2,
+h3 {
+  font-family: var(--font-heading);
+  letter-spacing: -0.01em;
 }
 
 :focus-visible {
@@ -57,11 +84,15 @@ body {
   }
   body {
     background: #fff;
+    background-image: none;
     color: #000;
   }
   main {
     max-width: none !important;
     padding: 0 !important;
+  }
+  * {
+    box-shadow: none !important;
   }
   li,
   img {

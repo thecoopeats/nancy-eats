@@ -1,3 +1,5 @@
+import { ShoppingBasket } from "lucide-react";
+import { PageTitle } from "@/components/page-title";
 import { asc, eq } from "drizzle-orm";
 import Link from "next/link";
 import { addOwnItem } from "@/app/groceries/actions";
@@ -19,7 +21,7 @@ export default async function GroceriesPage() {
   return (
     <div className="space-y-8">
       <div className="flex flex-wrap items-center justify-between gap-4">
-        <h1 className="text-4xl font-bold">Grocery list</h1>
+        <PageTitle Icon={ShoppingBasket} tint="bg-sage">Grocery list</PageTitle>
         {items.length > 0 && <PrintButton label="Print list" />}
       </div>
 

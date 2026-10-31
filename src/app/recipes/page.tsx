@@ -1,3 +1,5 @@
+import { Search } from "lucide-react";
+import { PageTitle } from "@/components/page-title";
 import { Suspense } from "react";
 import { Button } from "@/components/button";
 import { RecipeResults } from "@/components/recipe-results";
@@ -41,8 +43,8 @@ export default async function RecipesPage(props: PageProps<"/recipes">) {
 
   return (
     <section className="space-y-8">
-      <h1 className="text-4xl font-bold">Find recipes</h1>
-      <form className="space-y-5 rounded-2xl border-2 border-border bg-card p-5" action="/recipes">
+      <PageTitle Icon={Search} tint="bg-peach">Find recipes</PageTitle>
+      <form className="space-y-5 rounded-3xl border-2 border-border bg-card shadow-soft p-5" action="/recipes">
         <label className="block space-y-2">
           <span className="text-xl font-bold">What would you like? (optional)</span>
           <input name="q" defaultValue={filters.query} placeholder="chicken, soup, apple pie…" className={field} />

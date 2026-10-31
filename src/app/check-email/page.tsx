@@ -1,7 +1,10 @@
+import { MailCheck } from "lucide-react";
+import { PageTitle } from "@/components/page-title";
+
 export default function CheckEmailPage() {
   return (
-    <section className="max-w-lg space-y-6 py-6">
-      <h1 className="text-4xl font-bold">Check your email</h1>
+    <section className="max-w-lg space-y-6 rounded-3xl border-2 border-border bg-card p-6 shadow-soft sm:p-8">
+      <PageTitle Icon={MailCheck} tint="bg-sage">Check your email</PageTitle>
       <p className="text-xl">
         We sent you a link. Open the email from Nancy Eats and tap <strong>Sign in</strong>.
       </p>

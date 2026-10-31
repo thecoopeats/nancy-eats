@@ -1,3 +1,5 @@
+import { Heart } from "lucide-react";
+import { PageTitle } from "@/components/page-title";
 import { and, desc, eq } from "drizzle-orm";
 import Link from "next/link";
 import { ImportForm } from "@/components/import-form";
@@ -40,7 +42,7 @@ export default async function FavoritesPage() {
   return (
     <div className="space-y-12">
       <section className="space-y-5">
-        <h1 className="text-4xl font-bold">My Favorites</h1>
+        <PageTitle Icon={Heart} tint="bg-blush">My Favorites</PageTitle>
         <Grid
           rows={favorites}
           empty={
@@ -53,7 +55,7 @@ export default async function FavoritesPage() {
       </section>
 
 
-      <section className="space-y-4 rounded-2xl border-2 border-border bg-card p-5">
+      <section className="space-y-4 rounded-3xl border-2 border-border bg-card shadow-soft p-5">
         <h2 className="text-3xl font-bold">Save a recipe from another website</h2>
         <p className="text-xl text-muted">
           Paste the web address of any recipe. We&apos;ll keep just the ingredients and steps, without the ads.

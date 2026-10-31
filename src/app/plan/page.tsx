@@ -1,3 +1,5 @@
+import { CalendarDays, ChevronLeft, ChevronRight } from "lucide-react";
+import { PageTitle } from "@/components/page-title";
 import { and, eq, gte, lte } from "drizzle-orm";
 import Link from "next/link";
 import { addWeekToList } from "@/app/groceries/actions";
@@ -27,9 +29,9 @@ export default async function PlanPage(props: PageProps<"/plan">) {
 
   return (
     <div className="space-y-10">
-      <h1 className="text-4xl font-bold">Meal plan</h1>
+      <PageTitle Icon={CalendarDays} tint="bg-lavender">Meal plan</PageTitle>
 
-      <details className="no-print rounded-2xl border-2 border-border bg-card p-5" open={rows.length === 0}>
+      <details className="no-print rounded-3xl border-2 border-border bg-card shadow-soft p-5" open={rows.length === 0}>
         <summary className="cursor-pointer text-2xl font-bold">Plan my meals</summary>
         <form action={fillPlan} className="mt-5 space-y-5">
           <div className="flex flex-wrap gap-5">
@@ -69,21 +71,23 @@ export default async function PlanPage(props: PageProps<"/plan">) {
 
       <section className="space-y-5">
         <div className="no-print flex flex-wrap items-center justify-between gap-3">
-          <Link href={`/plan?week=${addDays(week, -7)}`} className="text-xl underline underline-offset-4">
-            ← Last week
+          <Link href={`/plan?week=${addDays(week, -7)}`} className="inline-flex min-h-12 items-center gap-1 rounded-full bg-card px-4 text-xl font-bold no-underline shadow-soft hover:bg-blush">
+            <ChevronLeft aria-hidden className="size-6" />
+            Last week
           </Link>
           <h2 className="text-2xl font-bold">Week of {formatDay(week, "short")}</h2>
-          <Link href={`/plan?week=${addDays(week, 7)}`} className="text-xl underline underline-offset-4">
-            Next week →
+          <Link href={`/plan?week=${addDays(week, 7)}`} className="inline-flex min-h-12 items-center gap-1 rounded-full bg-card px-4 text-xl font-bold no-underline shadow-soft hover:bg-blush">
+            Next week
+            <ChevronRight aria-hidden className="size-6" />
           </Link>
         </div>
 
         <ol className="space-y-5">
           {days.map((day) => (
-            <li key={day} className={`rounded-2xl border-2 bg-card p-4 ${day === now ? "border-accent" : "border-border"}`}>
+            <li key={day} className={`rounded-3xl border-2 bg-card p-4 shadow-soft ${day === now ? "border-accent" : "border-border"}`}>
               <h3 className="mb-3 text-2xl font-bold">
                 {formatDay(day)}
-                {day === now && <span className="ml-3 text-lg text-accent">Today</span>}
+                {day === now && <span className="ml-3 rounded-full bg-accent px-3 py-0.5 align-middle font-sans text-base text-accent-ink">Today</span>}
               </h3>
               <div className="grid gap-3 md:grid-cols-3">
                 {MEALS.map((meal) => (
@@ -105,7 +109,7 @@ export default async function PlanPage(props: PageProps<"/plan">) {
 
 function Slot({ meal, row }: { meal: (typeof MEALS)[number]; row?: Planned }) {
   return (
-    <div className={`flex flex-col gap-3 rounded-xl border-2 border-l-8 border-border p-3 ${MEAL_STYLE[meal].bar}`}>
+    <div className={`flex flex-col gap-3 rounded-2xl border-2 border-l-8 border-border p-3 ${MEAL_STYLE[meal].bar}`}>
       <MealChip meal={meal} />
       {row ? (
         <>
