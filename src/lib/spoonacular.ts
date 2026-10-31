@@ -34,7 +34,6 @@ export type SearchFilters = {
   seasonal?: boolean;
   picky?: boolean;
   comfort?: boolean;
-  page?: number;
 };
 
 export type RecipeTile = {
@@ -74,6 +73,8 @@ function pick<T>(items: readonly T[]): T {
  * Turn the site's friendly filters into Spoonacular parameters.
  * Random picks (season, comfort dish) happen here, outside the cache, so each search can vary.
  */
+export type SpoonSearchParams = ReturnType<typeof toSearchParams>;
+
 export function toSearchParams(f: SearchFilters) {
   const meal = f.meal ? MEAL_TO_TYPE[f.meal] : undefined;
   let query = f.query?.trim() ?? "";
@@ -87,7 +88,7 @@ export function toSearchParams(f: SearchFilters) {
     maxCalories: f.lowCalorie ? 500 : undefined,
     includeIngredients: f.seasonal ? pick(IN_SEASON[new Date().getMonth()]) : undefined,
     excludeIngredients: f.picky ? PICKY_EXCLUDE : undefined,
-    offset: ((f.page ?? 1) - 1) * PAGE_SIZE,
+    offset: 0,
   };
 }
 
@@ -96,7 +97,7 @@ type SearchResponse = {
   results: { id: number; title: string; image?: string; readyInMinutes?: number; extendedIngredients?: unknown[] }[];
 };
 
-export async function searchRecipes(params: ReturnType<typeof toSearchParams>) {
+export async function searchRecipes(params: SpoonSearchParams) {
   "use cache";
   cacheLife("hours");
   const data = await call<SearchResponse>("/recipes/complexSearch", {
