@@ -23,7 +23,7 @@ export async function SiteHeader() {
                 await signOut({ redirectTo: "/" });
               }}
             >
-              <button className="flex min-h-12 items-center gap-2 px-2 text-base text-muted underline underline-offset-4">
+              <button className="flex min-h-[48px] items-center gap-2 px-2 text-base text-muted underline underline-offset-4">
                 <LogOut aria-hidden className="size-5" />
                 Sign out
               </button>

@@ -41,12 +41,12 @@ export function IngredientList({
           </button>
         </div>
       </div>
-      <ul className="space-y-3 text-xl">
+      <ul className="space-y-2 text-lg">
         {ingredients.map((i, idx) => {
           const amount = i.amount == null ? "" : formatAmount(i.amount * factor);
           return (
-            <li key={idx} className="flex gap-3 border-b border-border pb-3">
-              <span className="min-w-28 font-bold">{[amount, i.unit].filter(Boolean).join(" ")}</span>
+            <li key={idx} className="flex gap-3 border-b border-border pb-2">
+              <span className="min-w-24 font-bold">{[amount, i.unit].filter(Boolean).join(" ")}</span>
               <span>{i.name}</span>
             </li>
           );
@@ -62,7 +62,7 @@ export function IngredientList({
                 setAdded(people);
               })
             }
-            className="min-h-14 rounded-xl bg-accent px-5 text-xl font-bold text-accent-ink hover:opacity-90 disabled:opacity-60"
+            className="min-h-14 rounded-full bg-accent px-6 text-xl font-bold text-accent-ink hover:opacity-90 disabled:opacity-60"
           >
             {pending ? "Adding…" : "Add to grocery list"}
           </button>

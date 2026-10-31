@@ -15,7 +15,7 @@ export type GroceryRow = {
 };
 
 const button =
-  "min-h-12 rounded-xl border-2 border-border bg-card px-4 text-lg font-bold hover:border-accent disabled:opacity-50";
+  "min-h-[48px] rounded-xl border-2 border-border bg-card px-4 text-lg font-bold hover:border-accent disabled:opacity-50";
 
 /** The list for the store: big rows to tick off, grouped by aisle. */
 export function GroceryList({ items }: { items: GroceryRow[] }) {

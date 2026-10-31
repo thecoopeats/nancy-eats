@@ -4,7 +4,7 @@ import { useFormStatus } from "react-dom";
 
 const SIZES = {
   normal: "min-h-14 rounded-full px-6 text-xl",
-  small: "min-h-12 rounded-full px-4 text-base",
+  small: "min-h-[48px] rounded-full px-4 text-base",
 };
 
 /** A secondary button for use inside a server-action form; shows when it's working. */

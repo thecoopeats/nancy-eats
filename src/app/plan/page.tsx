@@ -71,12 +71,12 @@ export default async function PlanPage(props: PageProps<"/plan">) {
 
       <section className="space-y-5">
         <div className="no-print flex flex-wrap items-center justify-between gap-3">
-          <Link href={`/plan?week=${addDays(week, -7)}`} className="inline-flex min-h-12 items-center gap-1 rounded-full bg-card px-4 text-xl font-bold no-underline shadow-soft hover:bg-blush">
+          <Link href={`/plan?week=${addDays(week, -7)}`} className="inline-flex min-h-[48px] items-center gap-1 rounded-full bg-card px-4 text-xl font-bold no-underline shadow-soft hover:bg-blush">
             <ChevronLeft aria-hidden className="size-6" />
             Last week
           </Link>
           <h2 className="text-2xl font-bold">Week of {formatDay(week, "short")}</h2>
-          <Link href={`/plan?week=${addDays(week, 7)}`} className="inline-flex min-h-12 items-center gap-1 rounded-full bg-card px-4 text-xl font-bold no-underline shadow-soft hover:bg-blush">
+          <Link href={`/plan?week=${addDays(week, 7)}`} className="inline-flex min-h-[48px] items-center gap-1 rounded-full bg-card px-4 text-xl font-bold no-underline shadow-soft hover:bg-blush">
             Next week
             <ChevronRight aria-hidden className="size-6" />
           </Link>

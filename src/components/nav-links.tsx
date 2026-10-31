@@ -23,7 +23,7 @@ export function NavLinks() {
             key={href}
             href={href}
             aria-current={here ? "page" : undefined}
-            className={`flex min-h-12 items-center gap-2 rounded-full border-2 px-4 text-lg font-bold no-underline transition-colors ${
+            className={`flex min-h-[48px] items-center gap-2 rounded-full border-2 px-4 text-lg font-bold no-underline transition-colors ${
               here ? "border-accent bg-accent text-accent-ink" : `border-transparent ${tint} hover:border-accent`
             }`}
           >
