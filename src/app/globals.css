@@ -1,0 +1,54 @@
+@import "tailwindcss";
+
+/* Large, high-contrast, calm defaults: built to be easy to read. */
+:root {
+  --background: #fffdf8;
+  --foreground: #1f1d1a;
+  --muted: #5c574f;
+  --accent: #b4441f;
+  --accent-ink: #ffffff;
+  --card: #ffffff;
+  --border: #e4ddd0;
+  /* Meal colors, used on the calendar later */
+  --breakfast: #e8a317;
+  --lunch: #3f8f4f;
+  --dinner: #3a5fa8;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-accent: var(--accent);
+  --color-accent-ink: var(--accent-ink);
+  --color-card: var(--card);
+  --color-border: var(--border);
+  --color-breakfast: var(--breakfast);
+  --color-lunch: var(--lunch);
+  --color-dinner: var(--dinner);
+  --font-sans: var(--font-readable);
+}
+
+html {
+  font-size: 20px;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  line-height: 1.6;
+}
+
+:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 3px;
+}
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  html {
+    font-size: 14pt;
+  }
+}
