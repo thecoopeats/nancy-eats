@@ -6,6 +6,7 @@ import {
   primaryKey,
   text,
   timestamp,
+  uniqueIndex,
 } from "drizzle-orm/pg-core";
 import type { AdapterAccountType } from "next-auth/adapters";
 
@@ -65,7 +66,9 @@ export const verificationTokens = pgTable(
 export type Ingredient = { amount: number | null; unit: string; name: string };
 
 /** A recipe the user has saved: a favorite, one they've made, or one imported from a URL. */
-export const savedRecipes = pgTable("saved_recipe", {
+export const savedRecipes = pgTable(
+  "saved_recipe",
+  {
   id: text("id")
     .primaryKey()
     .$defaultFn(() => crypto.randomUUID()),
@@ -85,4 +88,6 @@ export const savedRecipes = pgTable("saved_recipe", {
   isFavorite: boolean("isFavorite").notNull().default(false),
   lastMadeAt: timestamp("lastMadeAt", { mode: "date" }),
   createdAt: timestamp("createdAt", { mode: "date" }).notNull().defaultNow(),
-});
+  },
+  (t) => [uniqueIndex("saved_recipe_user_spoonacular").on(t.userId, t.spoonacularId)],
+);

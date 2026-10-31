@@ -1,5 +1,5 @@
 {
-  "id": "a7e708af-5c23-4459-8724-acbbfef6e605",
+  "id": "5c698874-4fd0-46f5-b3e2-64de612be878",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -192,7 +192,29 @@
           "default": "now()"
         }
       },
-      "indexes": {},
+      "indexes": {
+        "saved_recipe_user_spoonacular": {
+          "name": "saved_recipe_user_spoonacular",
+          "columns": [
+            {
+              "expression": "userId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "spoonacularId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
       "foreignKeys": {
         "saved_recipe_userId_user_id_fk": {
           "name": "saved_recipe_userId_user_id_fk",
