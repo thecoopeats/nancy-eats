@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { IngredientList } from "@/components/ingredient-list";
 import { PrintButton } from "@/components/print-button";
+import { cleanSteps } from "@/lib/clean-steps";
 import { difficulty, formatMinutes, type Recipe } from "@/lib/recipe";
 
 /** The simplified recipe: picture, ingredients, numbered steps. `actions` adds the buttons above. */
@@ -42,7 +43,7 @@ export function RecipeView({
       <section className="space-y-4">
         <h2 className="text-3xl font-bold">Steps</h2>
         <ol className="space-y-5">
-          {recipe.steps.map((step, idx) => (
+          {cleanSteps(recipe.steps).map((step, idx) => (
             <li key={idx} className="flex gap-4 text-xl">
               <span className="flex size-11 shrink-0 items-center justify-center rounded-full bg-accent font-bold text-accent-ink print:border print:bg-transparent print:text-foreground">
                 {idx + 1}

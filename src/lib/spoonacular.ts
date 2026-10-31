@@ -1,5 +1,6 @@
 import { cacheLife } from "next/cache";
 import type { Meal } from "@/db/schema";
+import { cleanSteps } from "./clean-steps";
 import type { Recipe } from "./recipe";
 
 const BASE = "https://api.spoonacular.com";
@@ -165,7 +166,7 @@ function normalize(r: SpoonRecipe, sourceUrl?: string): Recipe {
       name: i.nameClean || i.name || i.original || "",
       aisle: simpleAisle(i.aisle),
     })),
-    steps,
+    steps: cleanSteps(steps),
   };
 }
 
