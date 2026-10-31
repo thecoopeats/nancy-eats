@@ -95,7 +95,7 @@ export function toSearchParams(f: SearchFilters) {
 
 type SearchResponse = {
   totalResults: number;
-  results: { id: number; title: string; image?: string; readyInMinutes?: number; extendedIngredients?: unknown[] }[];
+  results: { id: number; title: string; image?: string; readyInMinutes?: number; extendedIngredients?: { name?: string; nameClean?: string | null; aisle?: string | null }[] }[];
 };
 
 export async function searchRecipes(params: SpoonSearchParams) {
@@ -190,9 +190,21 @@ const PLAN_TYPE: Record<Meal, { type: string; maxReadyTime?: number }> = {
   dinner: { type: "main course", maxReadyTime: 75 },
 };
 
-/** A handful of random, well-liked recipes for one meal. Not cached, so each call brings new ideas. */
-export async function suggestRecipes(meal: Meal, count: number): Promise<RecipeTile[]> {
+export type SuggestOptions = {
+  /** The same friendly filters as recipe search (high protein, country and so on). */
+  filters?: SearchFilters;
+  /** Only suggest recipes that use this ingredient, so groceries go further. */
+  sharedIngredient?: string;
+};
+
+export type Suggestion = RecipeTile & { mainIngredient: string | null };
+
+// Things nearly every kitchen has, which make a poor "shared" ingredient.
+const PANTRY = /\b(salt|pepper|oil|water|sugar|flour|butter|garlic|onion|vinegar|baking|vanilla|spice|seasoning|broth|stock|egg|milk)\b/i;
+
+async function suggestOnce(meal: Meal, count: number, extra: Record<string, string | number | undefined>): Promise<Suggestion[]> {
   const data = await call<SearchResponse>("/recipes/complexSearch", {
+    ...extra,
     ...PLAN_TYPE[meal],
     number: Math.min(count, 20),
     sort: "random",
@@ -206,7 +218,41 @@ export async function suggestRecipes(meal: Meal, count: number): Promise<RecipeT
     image: r.image ?? null,
     readyInMinutes: r.readyInMinutes ?? null,
     ingredientCount: r.extendedIngredients?.length ?? 0,
+    mainIngredient:
+      r.extendedIngredients?.map((i) => i.nameClean || i.name || "").find((n) => n && !PANTRY.test(n)) ?? null,
   }));
+}
+
+/**
+ * A handful of random, well-liked recipes for one meal. Not cached, so each call brings new ideas.
+ * If the chosen filters are too narrow, it loosens them (shared ingredient first, then filters) so no day is left empty.
+ */
+export async function suggestRecipes(meal: Meal, count: number, opts: SuggestOptions = {}): Promise<Suggestion[]> {
+  const f = opts.filters;
+  const base: Record<string, string | number | undefined> = {};
+  if (f) {
+    const p = toSearchParams({ ...f, meal: undefined });
+    base.query = p.query || undefined;
+    base.cuisine = p.cuisine;
+    base.minProtein = p.minProtein;
+    base.maxCalories = p.maxCalories;
+    base.includeIngredients = p.includeIngredients;
+    base.excludeIngredients = p.excludeIngredients;
+  }
+  const attempts: Record<string, string | number | undefined>[] = [];
+  if (opts.sharedIngredient) {
+    attempts.push({ ...base, includeIngredients: [base.includeIngredients, opts.sharedIngredient].filter(Boolean).join(",") });
+  }
+  attempts.push(base);
+  if (f) attempts.push({});
+
+  const found: Suggestion[] = [];
+  for (const extra of attempts) {
+    if (found.length >= count) break;
+    const more = await suggestOnce(meal, count - found.length + 2, extra);
+    for (const r of more) if (found.length < count && !found.some((x) => x.id === r.id)) found.push(r);
+  }
+  return found;
 }
 
 /** Meal ideas for right now, refreshed every hour. */
