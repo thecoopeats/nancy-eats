@@ -1,4 +1,4 @@
-import { and, desc, eq, isNotNull } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import Link from "next/link";
 import { ImportForm } from "@/components/import-form";
 import { RecipeTile } from "@/components/recipe-tile";
@@ -12,7 +12,7 @@ function href(r: Row) {
   return r.spoonacularId ? `/recipes/${r.spoonacularId}` : `/my-recipes/${r.id}`;
 }
 
-function Grid({ rows, empty, note }: { rows: Row[]; empty: React.ReactNode; note?: (r: Row) => string | undefined }) {
+function Grid({ rows, empty }: { rows: Row[]; empty: React.ReactNode }) {
   if (rows.length === 0) return <p className="text-xl text-muted">{empty}</p>;
   return (
     <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
@@ -24,7 +24,6 @@ function Grid({ rows, empty, note }: { rows: Row[]; empty: React.ReactNode; note
           image={r.image}
           readyInMinutes={r.readyInMinutes}
           ingredientCount={r.ingredients.length}
-          note={note?.(r)}
         />
       ))}
     </div>
@@ -33,17 +32,10 @@ function Grid({ rows, empty, note }: { rows: Row[]; empty: React.ReactNode; note
 
 export default async function FavoritesPage() {
   const user = await requireUser();
-  const [favorites, made] = await Promise.all([
-    db.query.savedRecipes.findMany({
-      where: and(eq(savedRecipes.userId, user.id), eq(savedRecipes.isFavorite, true)),
-      orderBy: desc(savedRecipes.createdAt),
-    }),
-    db.query.savedRecipes.findMany({
-      where: and(eq(savedRecipes.userId, user.id), isNotNull(savedRecipes.lastMadeAt)),
-      orderBy: desc(savedRecipes.lastMadeAt),
-      limit: 12,
-    }),
-  ]);
+  const favorites = await db.query.savedRecipes.findMany({
+    where: and(eq(savedRecipes.userId, user.id), eq(savedRecipes.isFavorite, true)),
+    orderBy: desc(savedRecipes.createdAt),
+  });
 
   return (
     <div className="space-y-12">
@@ -60,14 +52,6 @@ export default async function FavoritesPage() {
         />
       </section>
 
-      <section className="space-y-5">
-        <h2 className="text-3xl font-bold">Made before</h2>
-        <Grid
-          rows={made}
-          empty="When you tap “I made this” on a recipe, it shows up here."
-          note={(r) => r.lastMadeAt ? `Made ${r.lastMadeAt.toLocaleDateString("en-US", { month: "short", day: "numeric" })}` : undefined}
-        />
-      </section>
 
       <section className="space-y-4 rounded-2xl border-2 border-border bg-card p-5">
         <h2 className="text-3xl font-bold">Save a recipe from another website</h2>
