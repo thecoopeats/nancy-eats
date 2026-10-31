@@ -1,12 +1,10 @@
-import Link from "next/link";
 import { Suspense } from "react";
 import { Button } from "@/components/button";
-import { RecipeTile } from "@/components/recipe-tile";
+import { RecipeResults } from "@/components/recipe-results";
 import { requireUser } from "@/lib/require-user";
 import {
   COUNTRIES,
   MEAL_TYPES,
-  PAGE_SIZE,
   searchRecipes,
   toSearchParams,
   type SearchFilters,
@@ -31,7 +29,6 @@ function readFilters(sp: Record<string, string | string[] | undefined>): SearchF
     seasonal: one("seasonal") === "on",
     picky: one("picky") === "on",
     comfort: one("comfort") === "on",
-    page: Math.max(1, Number(one("page")) || 1),
   };
 }
 
@@ -88,16 +85,18 @@ export default async function RecipesPage(props: PageProps<"/recipes">) {
       </form>
 
       <Suspense key={JSON.stringify(filters)} fallback={<p className="text-xl text-muted">Finding recipes…</p>}>
-        <Results filters={filters} sp={sp} />
+        <Results filters={filters} />
       </Suspense>
     </section>
   );
 }
 
-async function Results({ filters, sp }: { filters: SearchFilters; sp: Record<string, string | string[] | undefined> }) {
+async function Results({ filters }: { filters: SearchFilters }) {
+  // Fix the search once (including any random season or comfort pick) so every scrolled page matches.
+  const params = toSearchParams(filters);
   let data;
   try {
-    data = await searchRecipes(toSearchParams(filters));
+    data = await searchRecipes(params);
   } catch (err) {
     console.error(err);
     return <p className="text-xl">Recipe search isn&apos;t working right now. Please try again later.</p>;
@@ -107,24 +106,5 @@ async function Results({ filters, sp }: { filters: SearchFilters; sp: Record<str
     return <p className="text-xl">No recipes matched. Try fewer choices or a different word.</p>;
   }
 
-  const page = filters.page ?? 1;
-  const next = new URLSearchParams(
-    Object.entries(sp).flatMap(([k, v]) => (typeof v === "string" && k !== "page" ? [[k, v]] : [])),
-  );
-  next.set("page", String(page + 1));
-
-  return (
-    <div className="space-y-6">
-      <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-        {data.tiles.map((t) => (
-          <RecipeTile key={t.id} href={`/recipes/${t.id}`} {...t} />
-        ))}
-      </div>
-      {page * PAGE_SIZE < data.total && (
-        <Link href={`/recipes?${next}`} className="inline-block text-xl font-bold underline underline-offset-4">
-          Show more recipes
-        </Link>
-      )}
-    </div>
-  );
+  return <RecipeResults initial={data.tiles} total={data.total} params={params} />;
 }

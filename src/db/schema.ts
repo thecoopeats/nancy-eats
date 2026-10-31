@@ -1,5 +1,6 @@
 import {
   boolean,
+  doublePrecision,
   date,
   integer,
   jsonb,
@@ -64,7 +65,8 @@ export const verificationTokens = pgTable(
 
 // App data
 
-export type Ingredient = { amount: number | null; unit: string; name: string };
+/** `aisle` is Spoonacular's store section (e.g. "Produce"), used to group the grocery list. */
+export type Ingredient = { amount: number | null; unit: string; name: string; aisle?: string };
 
 /** A recipe the user has saved: a favorite, one they've made, or one imported from a URL. */
 export const savedRecipes = pgTable(
@@ -116,4 +118,28 @@ export const plannedMeals = pgTable(
     ingredientCount: integer("ingredientCount").notNull().default(0),
   },
   (t) => [uniqueIndex("planned_meal_slot").on(t.userId, t.date, t.meal)],
+);
+
+/** One line on the grocery list. Same item and unit from several recipes are added together. */
+export const groceryItems = pgTable(
+  "grocery_item",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    userId: text("userId")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    /** Lowercased name + unit, used to combine repeats. */
+    key: text("key").notNull(),
+    name: text("name").notNull(),
+    amount: doublePrecision("amount"),
+    unit: text("unit").notNull().default(""),
+    aisle: text("aisle").notNull().default("Other"),
+    /** Recipe titles this item came from. */
+    recipes: jsonb("recipes").$type<string[]>().notNull().default([]),
+    checked: boolean("checked").notNull().default(false),
+    createdAt: timestamp("createdAt", { mode: "date" }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("grocery_item_user_key").on(t.userId, t.key)],
 );

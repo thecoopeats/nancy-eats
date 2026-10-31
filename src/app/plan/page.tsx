@@ -1,5 +1,6 @@
 import { and, eq, gte, lte } from "drizzle-orm";
 import Link from "next/link";
+import { addWeekToList } from "@/app/groceries/actions";
 import { clearMeal, fillPlan, similarMeal, swapMeal } from "@/app/plan/actions";
 import { ActionButton } from "@/components/action-button";
 import { Button } from "@/components/button";
@@ -92,6 +93,11 @@ export default async function PlanPage(props: PageProps<"/plan">) {
             </li>
           ))}
         </ol>
+        {rows.length > 0 && (
+          <form action={addWeekToList.bind(null, week)} className="no-print">
+            <ActionButton pendingText="Adding…">Add this week to my grocery list</ActionButton>
+          </form>
+        )}
       </section>
     </div>
   );
