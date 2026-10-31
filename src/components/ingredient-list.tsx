@@ -1,14 +1,26 @@
 "use client";
 
-import { useState } from "react";
+import Link from "next/link";
+import { useState, useTransition } from "react";
 import type { Ingredient } from "@/db/schema";
 import { formatAmount } from "@/lib/recipe";
 
 /** Ingredients with a people counter; amounts change to match. */
-export function IngredientList({ ingredients, servings }: { ingredients: Ingredient[]; servings: number | null }) {
+export function IngredientList({
+  ingredients,
+  servings,
+  addToList,
+}: {
+  ingredients: Ingredient[];
+  servings: number | null;
+  /** Adds these ingredients, scaled to `people`, to the grocery list. */
+  addToList?: (people: number) => Promise<void>;
+}) {
   const base = servings ?? 4;
   const [people, setPeople] = useState(base);
   const factor = people / base;
+  const [added, setAdded] = useState<number | null>(null);
+  const [pending, startTransition] = useTransition();
 
   const stepButton =
     "no-print size-14 rounded-xl border-2 border-border bg-card text-3xl font-bold leading-none hover:border-accent disabled:opacity-40";
@@ -40,6 +52,30 @@ export function IngredientList({ ingredients, servings }: { ingredients: Ingredi
           );
         })}
       </ul>
+      {addToList && (
+        <div className="no-print flex flex-wrap items-center gap-4">
+          <button
+            disabled={pending}
+            onClick={() =>
+              startTransition(async () => {
+                await addToList(people);
+                setAdded(people);
+              })
+            }
+            className="min-h-14 rounded-xl bg-accent px-5 text-xl font-bold text-accent-ink hover:opacity-90 disabled:opacity-60"
+          >
+            {pending ? "Adding…" : "Add to grocery list"}
+          </button>
+          {added != null && !pending && (
+            <p className="text-lg" role="status">
+              Added for {added} {added === 1 ? "person" : "people"}.{" "}
+              <Link href="/groceries" className="font-bold underline">
+                See the list
+              </Link>
+            </p>
+          )}
+        </div>
+      )}
     </section>
   );
 }

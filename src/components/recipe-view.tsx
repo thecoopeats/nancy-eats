@@ -9,11 +9,13 @@ export function RecipeView({
   actions,
   note,
   planner,
+  addToList,
 }: {
   recipe: Recipe;
   actions?: ReactNode;
   note?: ReactNode;
   planner?: ReactNode;
+  addToList?: (people: number) => Promise<void>;
 }) {
   const level = difficulty(recipe.readyInMinutes, recipe.ingredients.length);
   return (
@@ -36,7 +38,7 @@ export function RecipeView({
         // eslint-disable-next-line @next/next/no-img-element -- images come from many recipe sites
         <img src={recipe.image} alt="" className="w-full max-h-[28rem] rounded-2xl object-cover print:max-h-60" />
       )}
-      <IngredientList ingredients={recipe.ingredients} servings={recipe.servings} />
+      <IngredientList ingredients={recipe.ingredients} servings={recipe.servings} addToList={addToList} />
       <section className="space-y-4">
         <h2 className="text-3xl font-bold">Steps</h2>
         <ol className="space-y-5">

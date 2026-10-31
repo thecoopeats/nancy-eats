@@ -44,11 +44,31 @@ body {
   outline-offset: 3px;
 }
 
+@page {
+  margin: 1.5cm;
+}
+
 @media print {
   .no-print {
     display: none !important;
   }
   html {
-    font-size: 14pt;
+    font-size: 13pt;
+  }
+  body {
+    background: #fff;
+    color: #000;
+  }
+  main {
+    max-width: none !important;
+    padding: 0 !important;
+  }
+  li,
+  img {
+    break-inside: avoid;
+  }
+  a {
+    text-decoration: none;
+    color: inherit;
   }
 }

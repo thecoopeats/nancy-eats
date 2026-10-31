@@ -132,9 +132,16 @@ type SpoonRecipe = {
   servings?: number;
   sourceUrl?: string;
   instructions?: string;
-  extendedIngredients?: { amount?: number; unit?: string; nameClean?: string | null; name?: string; original?: string }[];
+  extendedIngredients?: { amount?: number; unit?: string; nameClean?: string | null; name?: string; original?: string; aisle?: string | null }[];
   analyzedInstructions?: { steps: { step: string }[] }[];
 };
+
+/** Spoonacular aisles look like "Milk, Eggs, Other Dairy;Cheese". Keep the first, in plain words. */
+function simpleAisle(aisle?: string | null): string {
+  const first = aisle?.split(";")[0]?.trim();
+  if (!first || first === "?") return "Other";
+  return first;
+}
 
 function normalize(r: SpoonRecipe, sourceUrl?: string): Recipe {
   let steps = (r.analyzedInstructions ?? []).flatMap((block) => block.steps.map((s) => s.step.trim()));
@@ -156,6 +163,7 @@ function normalize(r: SpoonRecipe, sourceUrl?: string): Recipe {
       amount: i.amount ?? null,
       unit: i.unit ?? "",
       name: i.nameClean || i.name || i.original || "",
+      aisle: simpleAisle(i.aisle),
     })),
     steps,
   };
