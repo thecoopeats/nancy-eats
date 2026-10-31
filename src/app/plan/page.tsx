@@ -9,9 +9,21 @@ import { Button } from "@/components/button";
 import { MEAL_STYLE, MealChip } from "@/components/meal-label";
 import { db } from "@/db";
 import { MEALS, plannedMeals } from "@/db/schema";
-import { addDays, formatDay, isDay, today, weekStart } from "@/lib/dates";
+import { addDays, formatDay, isDay, today } from "@/lib/dates";
 import { difficulty, formatMinutes } from "@/lib/recipe";
 import { requireUser } from "@/lib/require-user";
+import { COUNTRIES } from "@/lib/spoonacular";
+
+const CHOICES = [
+  ["similar", "Similar ingredients"],
+  ["highProtein", "High protein"],
+  ["lowCalorie", "Low calorie"],
+  ["seasonal", "In season"],
+  ["picky", "Picky eaters"],
+  ["comfort", "Comfort food"],
+] as const;
+
+const checkBox = "flex min-h-14 cursor-pointer items-center gap-3 rounded-xl border-2 border-border px-4 text-xl has-[:checked]:border-accent";
 
 type Planned = typeof plannedMeals.$inferSelect;
 
@@ -19,11 +31,14 @@ export default async function PlanPage(props: PageProps<"/plan">) {
   const user = await requireUser();
   const sp = await props.searchParams;
   const now = today();
-  const week = isDay(sp.week) ? weekStart(sp.week) : weekStart(now);
-  const days = Array.from({ length: 7 }, (_, i) => addDays(week, i));
+  // The calendar starts at today (or the day a plan starts) and runs forward, so past days don't crowd the screen.
+  const from = isDay(sp.from) ? sp.from : now;
+  const count = Number(sp.days) === 14 ? 14 : 7;
+  const days = Array.from({ length: count }, (_, i) => addDays(from, i));
+  const last = days[days.length - 1];
 
   const rows = await db.query.plannedMeals.findMany({
-    where: and(eq(plannedMeals.userId, user.id), gte(plannedMeals.date, days[0]), lte(plannedMeals.date, days[6])),
+    where: and(eq(plannedMeals.userId, user.id), gte(plannedMeals.date, days[0]), lte(plannedMeals.date, last)),
   });
   const bySlot = new Map(rows.map((r) => [`${r.date}|${r.meal}`, r]));
 
@@ -37,7 +52,7 @@ export default async function PlanPage(props: PageProps<"/plan">) {
           <div className="flex flex-wrap gap-5">
             <label className="space-y-1">
               <span className="block text-xl font-bold">Starting</span>
-              <input type="date" name="start" defaultValue={now} className="min-h-14 rounded-xl border-2 border-border bg-card px-3 text-xl" />
+              <input type="date" name="start" defaultValue={now} min={now} className="min-h-14 rounded-xl border-2 border-border bg-card px-3 text-xl" />
             </label>
             <label className="space-y-1">
               <span className="block text-xl font-bold">For how many days?</span>
@@ -54,13 +69,36 @@ export default async function PlanPage(props: PageProps<"/plan">) {
             <legend className="text-xl font-bold">Which meals?</legend>
             <div className="flex flex-wrap gap-3">
               {MEALS.map((m) => (
-                <label key={m} className="flex min-h-14 cursor-pointer items-center gap-3 rounded-xl border-2 border-border px-4 text-xl has-[:checked]:border-accent">
+                <label key={m} className={checkBox}>
                   <input type="checkbox" name={m} defaultChecked={m === "dinner"} className="size-6 accent-[var(--accent)]" />
                   <MealChip meal={m} />
                 </label>
               ))}
             </div>
           </fieldset>
+          <fieldset className="space-y-2">
+            <legend className="text-xl font-bold">Anything special? (optional)</legend>
+            <div className="flex flex-wrap gap-3">
+              {CHOICES.map(([name, label]) => (
+                <label key={name} className={checkBox}>
+                  <input type="checkbox" name={name} className="size-6 accent-[var(--accent)]" />
+                  {label}
+                </label>
+              ))}
+            </div>
+            <p className="text-lg text-muted">&ldquo;Similar ingredients&rdquo; picks recipes that share a main ingredient, so your groceries go further.</p>
+          </fieldset>
+          <label className="block max-w-sm space-y-1">
+            <span className="block text-xl font-bold">Country (optional)</span>
+            <select name="country" defaultValue="" className="block w-full min-h-14 rounded-xl border-2 border-border bg-card px-3 text-xl">
+              <option value="">Any country</option>
+              {COUNTRIES.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            </select>
+          </label>
           <p className="text-lg text-muted">
             We&apos;ll suggest a recipe for each empty spot. Meals you&apos;ve already planned stay as they are. To choose
             your own, open any recipe and tap &ldquo;Add to meal plan&rdquo;.
@@ -71,16 +109,23 @@ export default async function PlanPage(props: PageProps<"/plan">) {
 
       <section className="space-y-5">
         <div className="no-print flex flex-wrap items-center justify-between gap-3">
-          <Link href={`/plan?week=${addDays(week, -7)}`} className="inline-flex min-h-[48px] items-center gap-1 rounded-full bg-card px-4 text-xl font-bold no-underline shadow-soft hover:bg-blush">
+          <Link href={`/plan?from=${addDays(from, -7)}`} className="inline-flex min-h-[48px] items-center gap-1 rounded-full bg-card px-4 text-xl font-bold no-underline shadow-soft hover:bg-blush">
             <ChevronLeft aria-hidden className="size-6" />
-            Last week
+            Earlier
           </Link>
-          <h2 className="text-2xl font-bold">Week of {formatDay(week, "short")}</h2>
-          <Link href={`/plan?week=${addDays(week, 7)}`} className="inline-flex min-h-[48px] items-center gap-1 rounded-full bg-card px-4 text-xl font-bold no-underline shadow-soft hover:bg-blush">
-            Next week
+          <h2 className="text-2xl font-bold">
+            {from === now ? `Next ${count} days` : `${formatDay(from, "short")} to ${formatDay(last, "short")}`}
+          </h2>
+          <Link href={`/plan?from=${addDays(from, 7)}`} className="inline-flex min-h-[48px] items-center gap-1 rounded-full bg-card px-4 text-xl font-bold no-underline shadow-soft hover:bg-blush">
+            Later
             <ChevronRight aria-hidden className="size-6" />
           </Link>
         </div>
+        {from !== now && (
+          <Link href="/plan" className="no-print inline-flex min-h-[48px] items-center rounded-full bg-accent px-5 text-xl font-bold text-accent-ink no-underline shadow-soft">
+            Back to today
+          </Link>
+        )}
 
         <ol className="space-y-5">
           {days.map((day) => (
@@ -98,8 +143,8 @@ export default async function PlanPage(props: PageProps<"/plan">) {
           ))}
         </ol>
         {rows.length > 0 && (
-          <form action={addWeekToList.bind(null, week)} className="no-print">
-            <ActionButton pendingText="Adding…">Add this week to my grocery list</ActionButton>
+          <form action={addWeekToList.bind(null, from, count)} className="no-print">
+            <ActionButton pendingText="Adding…">Add these days to my grocery list</ActionButton>
           </form>
         )}
       </section>

@@ -69,14 +69,15 @@ export async function addRecipeToList(target: RecipeTarget, people: number) {
 }
 
 /** From the meal plan: add everything planned for a week. */
-export async function addWeekToList(weekStart: string) {
+export async function addWeekToList(from: string, count = 7) {
   const user = await requireUser();
-  if (!isDay(weekStart)) return;
+  if (!isDay(from)) return;
+  const days = Math.min(14, Math.max(1, Math.floor(count) || 7));
   const meals = await db.query.plannedMeals.findMany({
     where: and(
       eq(plannedMeals.userId, user.id),
-      gte(plannedMeals.date, weekStart),
-      lte(plannedMeals.date, addDays(weekStart, 6)),
+      gte(plannedMeals.date, from),
+      lte(plannedMeals.date, addDays(from, days - 1)),
     ),
   });
   for (const m of meals) {

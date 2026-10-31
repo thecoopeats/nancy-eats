@@ -5,9 +5,9 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { db } from "@/db";
 import { MEALS, plannedMeals, savedRecipes, type Meal } from "@/db/schema";
-import { addDays, isDay, weekStart } from "@/lib/dates";
+import { addDays, isDay, today } from "@/lib/dates";
 import { requireUser } from "@/lib/require-user";
-import { getRecipe, similarByIngredients, suggestRecipes, type RecipeTile } from "@/lib/spoonacular";
+import { COUNTRIES, getRecipe, similarByIngredients, suggestRecipes, type RecipeTile, type SearchFilters } from "@/lib/spoonacular";
 
 type Slot = { date: string; meal: Meal };
 type PlanRecipe = {
@@ -30,6 +30,18 @@ function fromTile(t: RecipeTile): PlanRecipe {
   };
 }
 
+/** The plan page showing a range of days: today onward when the range fits in the default view, otherwise from its first day. */
+function planView(start: string, days: number) {
+  const now = today();
+  const span = days > 7 ? 14 : 7;
+  const from = start >= now && addDays(start, days - 1) <= addDays(now, span - 1) ? now : start;
+  const params = new URLSearchParams();
+  if (from !== now) params.set("from", from);
+  if (span === 14) params.set("days", "14");
+  const q = params.toString();
+  return q ? `/plan?${q}` : "/plan";
+}
+
 async function putInSlot(userId: string, slot: Slot, recipe: PlanRecipe) {
   await db
     .insert(plannedMeals)
@@ -40,10 +52,12 @@ async function putInSlot(userId: string, slot: Slot, recipe: PlanRecipe) {
 /** Fill every empty slot in the chosen days and meals with a suggested recipe. */
 export async function fillPlan(formData: FormData) {
   const user = await requireUser();
-  const start = String(formData.get("start"));
+  let start = String(formData.get("start"));
   const days = Math.min(14, Math.max(1, Number(formData.get("days")) || 7));
   const meals = MEALS.filter((m) => formData.get(m) === "on");
   if (!isDay(start) || meals.length === 0) redirect("/plan");
+  // Never plan days that have already passed.
+  if (start < today()) start = today();
   const end = addDays(start, days - 1);
 
   const existing = await db.query.plannedMeals.findMany({
@@ -52,6 +66,20 @@ export async function fillPlan(formData: FormData) {
   });
   const taken = new Set(existing.map((e) => `${e.date}|${e.meal}`));
 
+  const on = (k: string) => formData.get(k) === "on";
+  const country = String(formData.get("country") ?? "");
+  const filters: SearchFilters = {
+    country: (COUNTRIES as readonly string[]).includes(country) ? country : undefined,
+    highProtein: on("highProtein"),
+    lowCalorie: on("lowCalorie"),
+    seasonal: on("seasonal"),
+    picky: on("picky"),
+    comfort: on("comfort"),
+  };
+  const similar = on("similar");
+  // With "similar ingredients", the first recipe picked sets an ingredient the rest of the plan shares.
+  let shared: string | undefined;
+
   for (const meal of meals) {
     const empty: Slot[] = [];
     for (let i = 0; i < days; i++) {
@@ -59,12 +87,20 @@ export async function fillPlan(formData: FormData) {
       if (!taken.has(`${date}|${meal}`)) empty.push({ date, meal });
     }
     if (empty.length === 0) continue;
-    const ideas = await suggestRecipes(meal, empty.length);
+    let ideas: RecipeTile[] = [];
+    if (similar && !shared) {
+      const [first] = await suggestRecipes(meal, 1, { filters });
+      shared = first?.mainIngredient ?? undefined;
+      const rest = empty.length > 1 ? await suggestRecipes(meal, empty.length - 1, { filters, sharedIngredient: shared }) : [];
+      ideas = [first, ...rest.filter((r) => r.id !== first?.id)].filter(Boolean);
+    } else {
+      ideas = await suggestRecipes(meal, empty.length, { filters, sharedIngredient: similar ? shared : undefined });
+    }
     await Promise.all(empty.slice(0, ideas.length).map((slot, i) => putInSlot(user.id, slot, fromTile(ideas[i]))));
   }
 
   revalidatePath("/plan");
-  redirect(`/plan?week=${weekStart(start)}`);
+  redirect(planView(start, days));
 }
 
 async function ownMeal(userId: string, id: string) {
@@ -140,5 +176,5 @@ export async function addToPlan(target: PlanTarget, formData: FormData) {
     });
   }
   revalidatePath("/plan");
-  redirect(`/plan?week=${weekStart(date)}`);
+  redirect(planView(date, 1));
 }
