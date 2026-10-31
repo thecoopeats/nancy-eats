@@ -14,7 +14,7 @@ A simple recipe and meal-planning site: find recipes, see them in easy steps, pl
 1. In Vercel, import this repo, then add **Neon** from the Marketplace (Storage tab). It sets `DATABASE_URL`.
 2. Create a free [Resend](https://resend.com) account, verify a sending domain, and add `AUTH_RESEND_KEY` and `AUTH_EMAIL_FROM`.
 3. Add `AUTH_SECRET` (generate with `npx auth secret`) and `SPOONACULAR_API_KEY`.
-4. Create the tables once: `vercel env pull .env.local`, then `DATABASE_URL=... npm run db:migrate` using the value from that file.
+4. Tables are created automatically: on Vercel, the `vercel-build` script runs `drizzle-kit migrate` before each build. Locally, run `npm run db:migrate` with `DATABASE_URL` set.
 
 See `.env.example` for every variable.
 

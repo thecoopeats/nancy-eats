@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "drizzle-kit migrate"
+    "db:migrate": "drizzle-kit migrate",
+    "vercel-build": "drizzle-kit migrate && next build"
   },
   "dependencies": {
     "@auth/drizzle-adapter": "^1.11.3",
