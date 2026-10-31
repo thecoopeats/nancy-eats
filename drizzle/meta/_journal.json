@@ -15,6 +15,13 @@
       "when": 1793472328640,
       "tag": "0001_grocery_list",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1793477498994,
+      "tag": "0002_api_cache",
+      "breakpoints": true
     }
   ]
 }

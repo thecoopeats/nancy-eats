@@ -1,5 +1,6 @@
 import { cacheLife } from "next/cache";
 import type { Meal } from "@/db/schema";
+import { cacheKey, cached, save } from "./api-cache";
 import { cleanSteps } from "./clean-steps";
 import type { Recipe } from "./recipe";
 
@@ -110,19 +111,42 @@ export function toSearchParams(f: SearchFilters) {
 
 type SearchResponse = {
   totalResults: number;
-  results: { id: number; title: string; image?: string; readyInMinutes?: number; extendedIngredients?: { name?: string; nameClean?: string | null; aisle?: string | null }[] }[];
+  results: (SpoonRecipe & { id: number; title: string })[];
 };
+
+// How long saved answers last. Recipes rarely change; popular searches change slowly.
+const RECIPE_DAYS = 30;
+const SEARCH_DAYS = 3;
+
+const recipeKey = (id: number) => `recipe:${id}`;
+
+/**
+ * Searches already return everything a recipe page needs, so save each recipe as it arrives.
+ * Opening it afterwards then costs nothing.
+ */
+async function keepRecipes(results: SearchResponse["results"]) {
+  await save(
+    results.filter((r) => r.analyzedInstructions?.some((b) => b.steps.length > 0)).map((r) => ({ key: recipeKey(r.id), value: r })),
+    RECIPE_DAYS,
+  );
+}
 
 export async function searchRecipes(params: SpoonSearchParams) {
   "use cache";
   cacheLife("hours");
-  const data = await call<SearchResponse>("/recipes/complexSearch", {
+  const request = {
     ...params,
     number: PAGE_SIZE,
     sort: params.query ? undefined : "popularity",
     instructionsRequired: true,
     addRecipeInformation: true,
+    addRecipeInstructions: true,
     fillIngredients: true,
+  };
+  const data = await cached(cacheKey("search", request), SEARCH_DAYS, async () => {
+    const fresh = await call<SearchResponse>("/recipes/complexSearch", request);
+    await keepRecipes(fresh.results);
+    return fresh;
   });
   return {
     total: data.totalResults,
@@ -188,7 +212,10 @@ function normalize(r: SpoonRecipe, sourceUrl?: string): Recipe {
 export async function getRecipe(id: number): Promise<Recipe> {
   "use cache";
   cacheLife("days");
-  return normalize(await call<SpoonRecipe>(`/recipes/${id}/information`, { includeNutrition: false }));
+  const raw = await cached(recipeKey(id), RECIPE_DAYS, () =>
+    call<SpoonRecipe>(`/recipes/${id}/information`, { includeNutrition: false }),
+  );
+  return normalize(raw);
 }
 
 /** Read a recipe from any web page and simplify it to ingredients and steps. */
@@ -231,8 +258,10 @@ async function suggestOnce(
     sort: "random",
     instructionsRequired: true,
     addRecipeInformation: true,
+    addRecipeInstructions: true,
     fillIngredients: true,
   });
+  await keepRecipes(data.results);
   return data.results.map((r) => ({
     id: r.id,
     title: r.title,
@@ -278,20 +307,23 @@ export async function suggestRecipes(meal: Meal, count: number, opts: SuggestOpt
   return found;
 }
 
-/** Meal ideas for right now, refreshed every hour. */
-export async function mealIdeas(meal: Meal): Promise<RecipeTile[]> {
+/** Meal ideas for right now. The same three for everyone all day, so the home page costs almost nothing. */
+export async function mealIdeas(meal: Meal, day: string): Promise<RecipeTile[]> {
   "use cache";
   cacheLife("hours");
-  return suggestRecipes(meal, 3);
+  return cached(`ideas:${meal}:${day}`, 1, () => suggestRecipes(meal, 3));
 }
 
 /** A different recipe that uses many of the same ingredients, so groceries go further. */
 export async function similarByIngredients(ingredients: string[], excludeId: number | null): Promise<RecipeTile | null> {
   const names = ingredients.filter(Boolean).slice(0, 5);
   if (names.length === 0) return null;
-  const found = await call<{ id: number; title: string; image?: string; usedIngredientCount: number; missedIngredientCount: number }[]>(
-    "/recipes/findByIngredients",
-    { ingredients: names.join(","), number: 8, ranking: 1, ignorePantry: true },
+  const request = { ingredients: names.join(","), number: 8, ranking: 1, ignorePantry: true };
+  const found = await cached(cacheKey("byIngredients", request), SEARCH_DAYS, () =>
+    call<{ id: number; title: string; image?: string; usedIngredientCount: number; missedIngredientCount: number }[]>(
+      "/recipes/findByIngredients",
+      request,
+    ),
   );
   const options = found.filter((r) => r.id !== excludeId);
   if (options.length === 0) return null;
