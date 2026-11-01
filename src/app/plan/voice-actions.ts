@@ -56,7 +56,7 @@ function instructions() {
   const now = today();
   return `You turn a home cook's spoken request into settings for a meal planner. Speech-to-text may have small mistakes; guess the most likely meaning.
 Today is ${formatDay(now)} (${now}). Tomorrow is ${addDays(now, 1)}.
-Defaults when they don't say: start today, 7 days ("this week" also means 7 days from today), dinner only, no filters, country empty, replace false.
+Defaults when they don't say: start today, 7 days ("this week" also means 7 days from today), dinner only, no filters, cuisine empty, replace false.
 "Healthy" means lowCalorie. Only turn on filters the request asks for.
 Write the summary for someone who isn't tech savvy: short, warm, no jargon, and mention the meals, the number of days and when it starts.`;
 }

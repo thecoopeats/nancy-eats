@@ -98,9 +98,9 @@ export default async function PlanPage(props: PageProps<"/plan">) {
             </div>
           </fieldset>
           <label className="block max-w-sm space-y-1">
-            <span className="block text-xl font-bold">Country (optional)</span>
+            <span className="block text-xl font-bold">Cuisine (optional)</span>
             <select name="country" defaultValue="" className="block w-full min-h-14 rounded-xl border-2 border-border bg-card px-3 text-xl">
-              <option value="">Any country</option>
+              <option value="">Any cuisine</option>
               {COUNTRIES.map((c) => (
                 <option key={c} value={c}>
                   {c}

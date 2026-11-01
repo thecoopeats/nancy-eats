@@ -233,7 +233,7 @@ const PLAN_TYPE: Record<Meal, { type: string; maxReadyTime?: number }> = {
 };
 
 export type SuggestOptions = {
-  /** The same friendly filters as recipe search (high protein, country and so on). */
+  /** The same friendly filters as recipe search (high protein, cuisine and so on). */
   filters?: SearchFilters;
 };
 
@@ -295,13 +295,6 @@ export async function suggestRecipes(meal: Meal, count: number, opts: SuggestOpt
     for (const r of more) if (found.length < count && !found.some((x) => x.id === r.id)) found.push(r);
   }
   return found;
-}
-
-/** Meal ideas for right now. The same three for everyone all day, so the home page costs almost nothing. */
-export async function mealIdeas(meal: Meal, day: string): Promise<RecipeTile[]> {
-  "use cache";
-  cacheLife("hours");
-  return cached(`ideas:${meal}:${day}`, 1, () => suggestRecipes(meal, 3));
 }
 
 // ---- Meals that share ingredients ----
@@ -395,4 +388,47 @@ export async function sharedIngredientWeek(params: SpoonSearchParams, set = 0) {
       }),
     ),
   };
+}
+
+// ---- "Give me a random meal" ----
+
+export const RANDOM_KINDS = ["breakfast", "lunch", "dinner", "dessert"] as const;
+export type RandomKind = (typeof RANDOM_KINDS)[number];
+
+const RANDOM_TYPE: Record<RandomKind, { type: string; maxReadyTime?: number }> = {
+  breakfast: { type: "breakfast" },
+  lunch: { type: "main course", maxReadyTime: 30 },
+  dinner: { type: "main course" },
+  dessert: { type: "dessert" },
+};
+
+/**
+ * One random recipe of the chosen kind. A pool of 20 is fetched once a day per kind and saved,
+ * so tapping again and again costs no extra Spoonacular points.
+ */
+export async function randomMeal(kind: RandomKind, notId?: number): Promise<RecipeTile | null> {
+  const day = new Date().toISOString().slice(0, 10);
+  const pool = await cached(`random:${kind}:${day}`, 1, async () => {
+    const data = await call<SearchResponse>("/recipes/complexSearch", {
+      ...RANDOM_TYPE[kind],
+      number: 20,
+      sort: "random",
+      instructionsRequired: true,
+      addRecipeInformation: true,
+      addRecipeInstructions: true,
+      fillIngredients: true,
+    });
+    await keepRecipes(data.results);
+    return data.results.map(
+      (r): RecipeTile => ({
+        id: r.id,
+        title: r.title,
+        image: r.image ?? null,
+        readyInMinutes: r.readyInMinutes ?? null,
+        ingredientCount: r.extendedIngredients?.length ?? 0,
+      }),
+    );
+  });
+  const options = pool.filter((t) => t.id !== notId);
+  return options.length > 0 ? pick(options) : (pool[0] ?? null);
 }
