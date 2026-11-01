@@ -23,6 +23,9 @@ type RecognitionCtor = new () => Recognition;
 
 function getRecognition(): RecognitionCtor | null {
   if (typeof window === "undefined") return null;
+  // Chrome, Firefox and Edge on iPhone are Safari underneath and ask for the microphone again on every try,
+  // which breaks the second tap. Those use the keyboard's own microphone key instead, which never asks.
+  if (/CriOS|FxiOS|EdgiOS/.test(navigator.userAgent)) return null;
   const w = window as unknown as { SpeechRecognition?: RecognitionCtor; webkitSpeechRecognition?: RecognitionCtor };
   return w.SpeechRecognition ?? w.webkitSpeechRecognition ?? null;
 }
@@ -70,7 +73,7 @@ export function VoicePlanner() {
       // Some phone browsers can't listen directly, but every phone keyboard has its own microphone key.
       typingBox.current?.focus();
       setMessage(
-        "This browser can't listen directly. Tap the microphone on your keyboard and speak, then tap \"Make my plan\". (Safari on iPhone and Chrome on Android can listen directly.)",
+        "To talk: tap the little microphone on your keyboard, say what you'd like, then tap \"Make my plan\".",
       );
       return;
     }
