@@ -30,7 +30,7 @@ function getRecognition(): RecognitionCtor | null {
 const MIC_OFF =
   "The microphone is turned off for this site. To turn it on: on iPhone or iPad, open the Settings app, tap Safari, tap Microphone and choose Allow. On Android, tap the lock next to the web address, tap Permissions and turn on Microphone. Then tap the microphone again.";
 
-const FILTERS = ["similar", "highProtein", "lowCalorie", "seasonal", "picky", "comfort"] as const;
+const FILTERS = ["highProtein", "lowCalorie", "seasonal", "picky", "comfort"] as const;
 
 /** "Ask out loud": say what you'd like, see it in plain words, tap Yes to fill the plan. */
 export function VoicePlanner() {

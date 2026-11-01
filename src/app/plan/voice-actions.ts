@@ -11,7 +11,6 @@ export type VoicePlan = {
   start: string;
   days: number;
   meals: Meal[];
-  similar: boolean;
   highProtein: boolean;
   lowCalorie: boolean;
   seasonal: boolean;
@@ -30,7 +29,7 @@ const SCHEMA = {
   type: "object",
   additionalProperties: false,
   required: [
-    "understood", "reply", "start", "days", "meals", "similar", "highProtein", "lowCalorie",
+    "understood", "reply", "start", "days", "meals", "highProtein", "lowCalorie",
     "seasonal", "picky", "comfort", "country", "replace", "summary",
   ],
   properties: {
@@ -39,7 +38,6 @@ const SCHEMA = {
     start: { type: "string", description: "First day to plan, YYYY-MM-DD. Never before today." },
     days: { type: "integer", description: "How many days to plan, 1 to 14." },
     meals: { type: "array", items: { type: "string", enum: [...MEALS] } },
-    similar: { type: "boolean", description: "Recipes share a main ingredient (to save on groceries / use up ingredients)." },
     highProtein: { type: "boolean" },
     lowCalorie: { type: "boolean", description: "Healthy, light, low calorie, losing weight." },
     seasonal: { type: "boolean", description: "In-season ingredients." },
@@ -96,7 +94,6 @@ export async function understandPlanRequest(text: string): Promise<VoiceResult> 
       start: isDay(out.start) && out.start >= now ? out.start : now,
       days: Math.min(14, Math.max(1, Math.round(Number(out.days)) || 7)),
       meals: meals.length ? meals : ["dinner"],
-      similar: out.similar === true,
       highProtein: out.highProtein === true,
       lowCalorie: out.lowCalorie === true,
       seasonal: out.seasonal === true,
