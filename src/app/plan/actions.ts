@@ -7,7 +7,7 @@ import { db } from "@/db";
 import { MEALS, plannedMeals, savedRecipes, type Meal } from "@/db/schema";
 import { addDays, isDay, today } from "@/lib/dates";
 import { requireUser } from "@/lib/require-user";
-import { COUNTRIES, getRecipe, isDailyLimit, similarByIngredients, suggestRecipes, type RecipeTile, type SearchFilters } from "@/lib/spoonacular";
+import { COUNTRIES, getRecipe, isDailyLimit, suggestRecipes, type RecipeTile, type SearchFilters } from "@/lib/spoonacular";
 
 type Slot = { date: string; meal: Meal };
 type PlanRecipe = {
@@ -78,9 +78,6 @@ export async function fillPlan(formData: FormData) {
     picky: on("picky"),
     comfort: on("comfort"),
   };
-  const similar = on("similar");
-  // With "similar ingredients", the first recipe picked sets an ingredient the rest of the plan shares.
-  let shared: string | undefined;
 
   let problem: string | null = null;
   try {
@@ -91,15 +88,7 @@ export async function fillPlan(formData: FormData) {
         if (!taken.has(`${date}|${meal}`)) empty.push({ date, meal });
       }
       if (empty.length === 0) continue;
-      let ideas: RecipeTile[] = [];
-      if (similar && !shared) {
-        const [first] = await suggestRecipes(meal, 1, { filters });
-        shared = first?.mainIngredient ?? undefined;
-        const rest = empty.length > 1 ? await suggestRecipes(meal, empty.length - 1, { filters, sharedIngredient: shared }) : [];
-        ideas = [first, ...rest.filter((r) => r.id !== first?.id)].filter(Boolean);
-      } else {
-        ideas = await suggestRecipes(meal, empty.length, { filters, sharedIngredient: similar ? shared : undefined });
-      }
+      const ideas = await suggestRecipes(meal, empty.length, { filters });
       await Promise.all(empty.slice(0, ideas.length).map((slot, i) => putInSlot(user.id, slot, fromTile(ideas[i]))));
     }
   } catch (err) {
@@ -125,22 +114,6 @@ export async function swapMeal(id: string) {
   const user = await requireUser();
   const row = await ownMeal(user.id, id);
   const [idea] = await suggestRecipes(row.meal, 1);
-  if (idea) await putInSlot(user.id, { date: row.date, meal: row.meal }, fromTile(idea));
-  revalidatePath("/plan");
-}
-
-/** Replace a planned meal with one that uses similar ingredients. */
-export async function similarMeal(id: string) {
-  const user = await requireUser();
-  const row = await ownMeal(user.id, id);
-  let names: string[] = [];
-  if (row.spoonacularId) {
-    names = (await getRecipe(row.spoonacularId)).ingredients.map((i) => i.name);
-  } else if (row.savedRecipeId) {
-    const saved = await db.query.savedRecipes.findFirst({ where: eq(savedRecipes.id, row.savedRecipeId) });
-    names = saved?.ingredients.map((i) => i.name) ?? [];
-  }
-  const idea = await similarByIngredients(names, row.spoonacularId);
   if (idea) await putInSlot(user.id, { date: row.date, meal: row.meal }, fromTile(idea));
   revalidatePath("/plan");
 }
@@ -186,4 +159,16 @@ export async function addToPlan(target: PlanTarget, formData: FormData) {
   }
   revalidatePath("/plan");
   redirect(planView(date, 1));
+}
+
+/** Put a set of recipes from search on consecutive days, one meal a day (used by "Meals that share ingredients"). */
+export async function addWeekToPlan(recipes: RecipeTile[], formData: FormData) {
+  const user = await requireUser();
+  const start = String(formData.get("start"));
+  const meal = String(formData.get("meal")) as Meal;
+  if (!isDay(start) || start < today() || !MEALS.includes(meal)) redirect("/plan");
+  const list = recipes.slice(0, 14);
+  await Promise.all(list.map((r, i) => putInSlot(user.id, { date: addDays(start, i), meal }, fromTile(r))));
+  revalidatePath("/plan");
+  redirect(planView(start, list.length));
 }

@@ -1,10 +1,10 @@
-import { CalendarDays, ChevronLeft, ChevronRight } from "lucide-react";
+import { CalendarDays, ChevronLeft, ChevronRight, ShoppingBasket } from "lucide-react";
 import { PageTitle } from "@/components/page-title";
 import { VoicePlanner } from "@/components/voice-planner";
 import { and, eq, gte, lte } from "drizzle-orm";
 import Link from "next/link";
 import { addWeekToList } from "@/app/groceries/actions";
-import { clearMeal, fillPlan, similarMeal, swapMeal } from "@/app/plan/actions";
+import { clearMeal, fillPlan, swapMeal } from "@/app/plan/actions";
 import { ActionButton } from "@/components/action-button";
 import { Button } from "@/components/button";
 import { MEAL_STYLE, MealChip } from "@/components/meal-label";
@@ -16,7 +16,6 @@ import { requireUser } from "@/lib/require-user";
 import { COUNTRIES, DAILY_LIMIT_MESSAGE } from "@/lib/spoonacular";
 
 const CHOICES = [
-  ["similar", "Similar ingredients"],
   ["highProtein", "High protein"],
   ["lowCalorie", "Low calorie"],
   ["seasonal", "In season"],
@@ -97,7 +96,6 @@ export default async function PlanPage(props: PageProps<"/plan">) {
                 </label>
               ))}
             </div>
-            <p className="text-lg text-muted">&ldquo;Similar ingredients&rdquo; picks recipes that share a main ingredient, so your groceries go further.</p>
           </fieldset>
           <label className="block max-w-sm space-y-1">
             <span className="block text-xl font-bold">Country (optional)</span>
@@ -121,6 +119,16 @@ export default async function PlanPage(props: PageProps<"/plan">) {
           <Button type="submit">Suggest recipes</Button>
         </form>
       </details>
+
+      <Link
+        href="/recipes?shared=on&meal=Dinner"
+        className="no-print flex min-h-14 items-center gap-3 rounded-3xl border-2 border-border bg-card p-5 text-xl font-bold no-underline shadow-soft hover:border-accent"
+      >
+        <ShoppingBasket aria-hidden className="size-7 shrink-0 text-accent" />
+        <span>
+          Want a shorter grocery list? Find a week of meals that share ingredients
+        </span>
+      </Link>
 
       <section className="space-y-5">
         <div className="no-print flex flex-wrap items-center justify-between gap-3">
@@ -191,9 +199,6 @@ function Slot({ meal, row }: { meal: (typeof MEALS)[number]; row?: Planned }) {
           <div className="no-print mt-auto flex flex-wrap gap-2">
             <form action={swapMeal.bind(null, row.id)}>
               <ActionButton size="small" pendingText="Finding…">Something else</ActionButton>
-            </form>
-            <form action={similarMeal.bind(null, row.id)}>
-              <ActionButton size="small" pendingText="Finding…">Similar ingredients</ActionButton>
             </form>
             <form action={clearMeal.bind(null, row.id)}>
               <ActionButton size="small" pendingText="Removing…">Remove</ActionButton>

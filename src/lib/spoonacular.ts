@@ -235,14 +235,9 @@ const PLAN_TYPE: Record<Meal, { type: string; maxReadyTime?: number }> = {
 export type SuggestOptions = {
   /** The same friendly filters as recipe search (high protein, country and so on). */
   filters?: SearchFilters;
-  /** Only suggest recipes that use this ingredient, so groceries go further. */
-  sharedIngredient?: string;
 };
 
-export type Suggestion = RecipeTile & { mainIngredient: string | null };
-
-// Things nearly every kitchen has, which make a poor "shared" ingredient.
-const PANTRY = /\b(salt|pepper|oil|water|sugar|flour|butter|garlic|onion|vinegar|baking|vanilla|spice|seasoning|broth|stock|egg|milk)\b/i;
+export type Suggestion = RecipeTile;
 
 async function suggestOnce(
   meal: Meal,
@@ -268,14 +263,12 @@ async function suggestOnce(
     image: r.image ?? null,
     readyInMinutes: r.readyInMinutes ?? null,
     ingredientCount: r.extendedIngredients?.length ?? 0,
-    mainIngredient:
-      r.extendedIngredients?.map((i) => i.nameClean || i.name || "").find((n) => n && !PANTRY.test(n)) ?? null,
   }));
 }
 
 /**
  * A handful of random, well-liked recipes for one meal. Not cached, so each call brings new ideas.
- * If the chosen filters are too narrow, it loosens them (shared ingredient first, then filters) so no day is left empty.
+ * If the chosen filters are too narrow, it loosens them so no day is left empty.
  */
 export async function suggestRecipes(meal: Meal, count: number, opts: SuggestOptions = {}): Promise<Suggestion[]> {
   const f = opts.filters;
@@ -291,9 +284,6 @@ export async function suggestRecipes(meal: Meal, count: number, opts: SuggestOpt
   }
   type Attempt = { extra: Record<string, string | number | undefined>; anyTime?: boolean };
   const attempts: Attempt[] = [];
-  if (opts.sharedIngredient) {
-    attempts.push({ extra: { ...base, includeIngredients: [base.includeIngredients, opts.sharedIngredient].filter(Boolean).join(",") } });
-  }
   attempts.push({ extra: base });
   // Keep the chosen filters (like a country) as long as possible: drop the cooking-time limit before dropping them.
   if (f) attempts.push({ extra: base, anyTime: true }, { extra: {} });
@@ -314,26 +304,95 @@ export async function mealIdeas(meal: Meal, day: string): Promise<RecipeTile[]> 
   return cached(`ideas:${meal}:${day}`, 1, () => suggestRecipes(meal, 3));
 }
 
-/** A different recipe that uses many of the same ingredients, so groceries go further. */
-export async function similarByIngredients(ingredients: string[], excludeId: number | null): Promise<RecipeTile | null> {
-  const names = ingredients.filter(Boolean).slice(0, 5);
-  if (names.length === 0) return null;
-  const request = { ingredients: names.join(","), number: 8, ranking: 1, ignorePantry: true };
-  const found = await cached(cacheKey("byIngredients", request), SEARCH_DAYS, () =>
-    call<{ id: number; title: string; image?: string; usedIngredientCount: number; missedIngredientCount: number }[]>(
-      "/recipes/findByIngredients",
-      request,
-    ),
-  );
-  const options = found.filter((r) => r.id !== excludeId);
-  if (options.length === 0) return null;
-  const choice = options[Math.floor(Math.random() * Math.min(options.length, 4))];
-  const full = await getRecipe(choice.id);
+// ---- Meals that share ingredients ----
+
+/** How many meals "Meals that share ingredients" picks: a week of one meal a day. */
+export const SHARED_WEEK = 7;
+export const SHARED_POOL = 30;
+
+// Kitchen basics, which don't make a grocery list longer and so don't count as "shared".
+const STAPLES =
+  /\b(salt|black pepper|white pepper|oil|water|ice|sugar|flour|butter|garlic|onion|vinegar|baking|vanilla|spice|seasoning|cooking spray|cornstarch|broth|stock|egg|milk)\b|^pepper$/i;
+
+type PoolRecipe = SearchResponse["results"][number];
+
+function groceries(r: PoolRecipe): string[] {
+  const names = (r.extendedIngredients ?? []).map((i) => (i.nameClean || i.name || "").trim().toLowerCase());
+  return [...new Set(names.filter((n) => n && !STAPLES.test(n)))];
+}
+
+/**
+ * From a pool of recipes, choose the set whose grocery items overlap the most.
+ * Tries each recipe as a starting point, then keeps adding whichever recipe needs the fewest new things to buy.
+ */
+function mostShared(pool: PoolRecipe[], size: number) {
+  const items = pool.map((r) => ({ r, need: groceries(r) })).filter((p) => p.need.length > 0);
+  let best: { group: typeof items; counts: Map<string, number>; saved: number } | null = null;
+  for (const seed of items) {
+    const group = [seed];
+    const counts = new Map<string, number>();
+    const add = (p: (typeof items)[number]) => p.need.forEach((n) => counts.set(n, (counts.get(n) ?? 0) + 1));
+    add(seed);
+    while (group.length < Math.min(size, items.length)) {
+      let pick: (typeof items)[number] | null = null;
+      let pickScore = -Infinity;
+      for (const c of items) {
+        if (group.includes(c)) continue;
+        const shared = c.need.filter((n) => counts.has(n)).length;
+        const score = shared * 2 - (c.need.length - shared);
+        if (score > pickScore) [pick, pickScore] = [c, score];
+      }
+      if (!pick) break;
+      group.push(pick);
+      add(pick);
+    }
+    // Grocery items saved: every use of an item after the first is one less thing to buy.
+    const saved = [...counts.values()].reduce((sum, n) => sum + n - 1, 0);
+    if (!best || saved > best.saved) best = { group, counts, saved };
+  }
+  if (!best) return { recipes: [] as PoolRecipe[], shared: [] as string[], items: 0 };
   return {
-    id: choice.id,
-    title: full.title,
-    image: full.image ?? choice.image ?? null,
-    readyInMinutes: full.readyInMinutes,
-    ingredientCount: full.ingredients.length,
+    recipes: best.group.map((p) => p.r),
+    shared: [...best.counts].filter(([, n]) => n > 1).sort((a, b) => b[1] - a[1]).map(([name]) => name),
+    items: best.counts.size,
+  };
+}
+
+/**
+ * A week of recipes, matching the chosen filters, that use many of the same ingredients so the grocery list is shorter.
+ * One search (about 2 points), saved for a few days. "set" asks for a different batch of recipes.
+ */
+export async function sharedIngredientWeek(params: SpoonSearchParams, set = 0) {
+  "use cache";
+  cacheLife("hours");
+  const request = {
+    ...params,
+    offset: Math.min(900, Math.max(0, set) * SHARED_POOL),
+    number: SHARED_POOL,
+    sort: params.query ? undefined : "popularity",
+    instructionsRequired: true,
+    addRecipeInformation: true,
+    addRecipeInstructions: true,
+    fillIngredients: true,
+  };
+  const data = await cached(cacheKey("search", request), SEARCH_DAYS, async () => {
+    const fresh = await call<SearchResponse>("/recipes/complexSearch", request);
+    await keepRecipes(fresh.results);
+    return fresh;
+  });
+  const pick = mostShared(data.results, SHARED_WEEK);
+  return {
+    total: data.totalResults,
+    shared: pick.shared,
+    items: pick.items,
+    tiles: pick.recipes.map(
+      (r): RecipeTile => ({
+        id: r.id,
+        title: r.title,
+        image: r.image ?? null,
+        readyInMinutes: r.readyInMinutes ?? null,
+        ingredientCount: r.extendedIngredients?.length ?? 0,
+      }),
+    ),
   };
 }

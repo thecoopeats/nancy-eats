@@ -3,6 +3,8 @@ import { PageTitle } from "@/components/page-title";
 import { Suspense } from "react";
 import { Button } from "@/components/button";
 import { RecipeResults } from "@/components/recipe-results";
+import { SharedWeek } from "@/components/shared-week";
+import type { Meal } from "@/db/schema";
 import { requireUser } from "@/lib/require-user";
 import {
   COUNTRIES,
@@ -10,6 +12,9 @@ import {
   isDailyLimit,
   MEAL_TYPES,
   searchRecipes,
+  SHARED_POOL,
+  SHARED_WEEK,
+  sharedIngredientWeek,
   toSearchParams,
   type SearchFilters,
 } from "@/lib/spoonacular";
@@ -36,12 +41,20 @@ function readFilters(sp: Record<string, string | string[] | undefined>): SearchF
   };
 }
 
+type Shared = { on: boolean; set: number };
+
+function readShared(sp: Record<string, string | string[] | undefined>): Shared {
+  const one = (k: string) => (Array.isArray(sp[k]) ? sp[k][0] : sp[k]) || undefined;
+  return { on: one("shared") === "on", set: Math.min(30, Math.max(0, Math.floor(Number(one("set")) || 0))) };
+}
+
 const field = "block w-full min-h-14 rounded-xl border-2 border-border bg-card px-4 text-xl";
 
 export default async function RecipesPage(props: PageProps<"/recipes">) {
   await requireUser();
   const sp = await props.searchParams;
   const filters = readFilters(sp);
+  const shared = readShared(sp);
 
   return (
     <section className="space-y-8">
@@ -83,13 +96,22 @@ export default async function RecipesPage(props: PageProps<"/recipes">) {
             </label>
           ))}
         </fieldset>
+        <label className="flex min-h-14 cursor-pointer items-start gap-3 rounded-2xl border-2 border-border bg-sage/40 p-4 has-[:checked]:border-accent has-[:checked]:bg-accent/10">
+          <input type="checkbox" name="shared" defaultChecked={shared.on} className="mt-1 size-6 shrink-0 accent-[var(--accent)]" />
+          <span>
+            <span className="block text-xl font-bold">Meals that share ingredients</span>
+            <span className="block text-lg text-muted">
+              Finds {SHARED_WEEK} meals for the week that use the same things, so your grocery list is shorter.
+            </span>
+          </span>
+        </label>
         <Button type="submit" className="w-full sm:w-auto">
           Show recipes
         </Button>
       </form>
 
-      <Suspense key={JSON.stringify(filters)} fallback={<p className="text-xl text-muted">Finding recipes…</p>}>
-        <Results filters={filters} />
+      <Suspense key={JSON.stringify([filters, shared])} fallback={<p className="text-xl text-muted">Finding recipes…</p>}>
+        {shared.on ? <SharedResults filters={filters} set={shared.set} sp={sp} /> : <Results filters={filters} />}
       </Suspense>
     </section>
   );
@@ -115,4 +137,40 @@ async function Results({ filters }: { filters: SearchFilters }) {
   }
 
   return <RecipeResults initial={data.tiles} total={data.total} params={params} />;
+}
+
+const PLAN_MEAL: Record<string, Meal> = { Breakfast: "breakfast", Lunch: "lunch" };
+
+async function SharedResults(props: { filters: SearchFilters; set: number; sp: Record<string, string | string[] | undefined> }) {
+  let data;
+  try {
+    data = await sharedIngredientWeek(toSearchParams(props.filters), props.set);
+  } catch (err) {
+    console.error(err);
+    return (
+      <p className="rounded-2xl border-2 border-border bg-card p-5 text-xl">
+        {isDailyLimit(err) ? DAILY_LIMIT_MESSAGE : "Recipe search isn't working right now. Please try again in a few minutes."}
+      </p>
+    );
+  }
+  if (data.tiles.length === 0) {
+    return <p className="text-xl">No recipes matched. Try fewer choices or a different word.</p>;
+  }
+
+  // Link to the next batch of recipes, keeping every other choice the same.
+  const next = new URLSearchParams();
+  for (const [k, v] of Object.entries(props.sp)) {
+    if (k !== "set" && typeof v === "string") next.set(k, v);
+  }
+  next.set("set", String(props.set + 1));
+  const more = (props.set + 1) * SHARED_POOL < data.total && props.set < 30;
+
+  return (
+    <SharedWeek
+      tiles={data.tiles}
+      shared={data.shared}
+      meal={PLAN_MEAL[props.filters.meal ?? ""] ?? "dinner"}
+      againHref={more ? `/recipes?${next}` : null}
+    />
+  );
 }
