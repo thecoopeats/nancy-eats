@@ -1,5 +1,6 @@
 import { CalendarDays, ChevronLeft, ChevronRight } from "lucide-react";
 import { PageTitle } from "@/components/page-title";
+import { VoicePlanner } from "@/components/voice-planner";
 import { and, eq, gte, lte } from "drizzle-orm";
 import Link from "next/link";
 import { addWeekToList } from "@/app/groceries/actions";
@@ -53,6 +54,8 @@ export default async function PlanPage(props: PageProps<"/plan">) {
             : "We couldn't find recipes just now. Please try again in a few minutes."}
         </p>
       )}
+
+      <VoicePlanner />
 
       <details className="no-print rounded-3xl border-2 border-border bg-card shadow-soft p-5" open={rows.length === 0}>
         <summary className="cursor-pointer text-2xl font-bold">Plan my meals</summary>
