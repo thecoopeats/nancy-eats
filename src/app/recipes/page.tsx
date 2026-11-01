@@ -1,4 +1,4 @@
-import { Search, SlidersHorizontal } from "lucide-react";
+import { ChevronDown, Search, SlidersHorizontal } from "lucide-react";
 import { PageTitle } from "@/components/page-title";
 import { Suspense } from "react";
 import { Button } from "@/components/button";
@@ -60,21 +60,20 @@ export default async function RecipesPage(props: PageProps<"/recipes">) {
   return (
     <section className="space-y-8">
       <PageTitle Icon={Search} tint="bg-peach">Find recipes</PageTitle>
-      <form className="space-y-5 rounded-3xl border-2 border-border bg-card shadow-soft p-5" action="/recipes">
+      <form className="space-y-5 rounded-3xl border-2 border-border bg-card shadow-soft p-4 sm:p-5" action="/recipes">
         <label className="block space-y-2">
           <span className="text-xl font-bold">What would you like? (optional)</span>
           <input name="q" defaultValue={filters.query} placeholder="chicken, soup, apple pie…" className={field} />
         </label>
         <details className="group rounded-2xl border-2 border-border">
-          <summary className="flex min-h-14 cursor-pointer list-none items-center gap-3 rounded-2xl px-4 text-xl font-bold marker:hidden [&::-webkit-details-marker]:hidden group-open:bg-accent/10">
+          <summary className="flex min-h-16 cursor-pointer list-none items-center gap-3 rounded-2xl px-4 text-xl font-bold marker:hidden [&::-webkit-details-marker]:hidden group-open:bg-accent/10">
             <SlidersHorizontal aria-hidden className="size-7 text-accent" />
             Filters
             {activeCount > 0 && <span className="rounded-full bg-accent px-3 py-0.5 text-lg text-accent-ink">{activeCount} chosen</span>}
-            <span className="ml-auto text-lg font-normal text-muted group-open:hidden">Tap to choose</span>
-            <span className="ml-auto hidden text-lg font-normal text-muted group-open:inline">Tap to close</span>
+            <ChevronDown aria-hidden className="ml-auto size-7 shrink-0 text-accent transition-transform group-open:rotate-180" />
           </summary>
-          <div className="space-y-5 p-4">
-        <div className="grid gap-5 sm:grid-cols-2">
+          <div className="space-y-4 p-3 sm:p-4">
+          <div className="grid gap-4 sm:grid-cols-2">
             <label className="block space-y-2">
               <span className="text-xl font-bold">Meal</span>
               <select name="meal" defaultValue={filters.meal ?? ""} className={field}>
@@ -94,19 +93,19 @@ export default async function RecipesPage(props: PageProps<"/recipes">) {
               </select>
             </label>
           </div>
-          <fieldset className="flex flex-wrap gap-3">
+          <fieldset className="grid gap-3 sm:grid-cols-2">
             <legend className="sr-only">Other choices</legend>
             {CHECKS.map(([name, label]) => (
               <label
                 key={name}
-                className="flex min-h-14 cursor-pointer items-center gap-3 rounded-xl border-2 border-border px-4 text-xl has-[:checked]:border-accent has-[:checked]:bg-accent/10"
+                className="flex min-h-14 cursor-pointer items-center gap-3 rounded-xl border-2 border-border px-3 text-xl has-[:checked]:border-accent has-[:checked]:bg-accent/10"
               >
                 <input type="checkbox" name={name} defaultChecked={filters[name]} className="size-6 accent-[var(--accent)]" />
                 {label}
               </label>
             ))}
           </fieldset>
-          <label className="flex min-h-14 cursor-pointer items-start gap-3 rounded-2xl border-2 border-border bg-sage/40 p-4 has-[:checked]:border-accent has-[:checked]:bg-accent/10">
+          <label className="flex min-h-14 cursor-pointer items-start gap-3 rounded-2xl border-2 border-border bg-sage/40 p-3 sm:p-4 has-[:checked]:border-accent has-[:checked]:bg-accent/10">
             <input type="checkbox" name="shared" defaultChecked={shared.on} className="mt-1 size-6 shrink-0 accent-[var(--accent)]" />
             <span>
               <span className="block text-xl font-bold">Meals that share ingredients</span>
