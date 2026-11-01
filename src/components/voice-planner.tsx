@@ -1,7 +1,7 @@
 "use client";
 
 import { Mic, Square } from "lucide-react";
-import { useRef, useState, useSyncExternalStore, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { useFormStatus } from "react-dom";
 import { fillPlan } from "@/app/plan/actions";
 import { understandPlanRequest, type VoicePlan } from "@/app/plan/voice-actions";
@@ -17,6 +17,7 @@ type Recognition = {
   onend: (() => void) | null;
   start(): void;
   stop(): void;
+  abort(): void;
 };
 type RecognitionCtor = new () => Recognition;
 
@@ -26,14 +27,13 @@ function getRecognition(): RecognitionCtor | null {
   return w.SpeechRecognition ?? w.webkitSpeechRecognition ?? null;
 }
 
-const noop = () => () => {};
+const MIC_OFF =
+  "The microphone is turned off for this site. To turn it on: on iPhone or iPad, open the Settings app, tap Safari, tap Microphone and choose Allow. On Android, tap the lock next to the web address, tap Permissions and turn on Microphone. Then tap the microphone again.";
 
 const FILTERS = ["similar", "highProtein", "lowCalorie", "seasonal", "picky", "comfort"] as const;
 
 /** "Ask out loud": say what you'd like, see it in plain words, tap Yes to fill the plan. */
 export function VoicePlanner() {
-  // False on the server and in browsers without speech-to-text (like Firefox), which get the typing box only.
-  const canListen = useSyncExternalStore(noop, () => getRecognition() !== null, () => false);
   const [listening, setListening] = useState(false);
   const [text, setText] = useState("");
   const [plan, setPlan] = useState<VoicePlan | null>(null);
@@ -41,6 +41,8 @@ export function VoicePlanner() {
   const [thinking, startThinking] = useTransition();
   const recognition = useRef<Recognition | null>(null);
   const heard = useRef("");
+  const finishRef = useRef<(() => void) | null>(null);
+  const typingBox = useRef<HTMLTextAreaElement>(null);
 
   function understand(words: string) {
     setMessage(null);
@@ -57,63 +59,93 @@ export function VoicePlanner() {
   }
 
   function listen() {
-    const Ctor = getRecognition();
-    if (!Ctor) return;
     setMessage(null);
     setPlan(null);
+    const Ctor = getRecognition();
+    if (!Ctor) {
+      // Some phone browsers can't listen directly, but every phone keyboard has its own microphone key.
+      typingBox.current?.focus();
+      setMessage(
+        "This browser can't listen directly. Tap the microphone on your keyboard and speak, then tap \"Make my plan\". (Safari on iPhone and Chrome on Android can listen directly.)",
+      );
+      return;
+    }
     setText("");
     heard.current = "";
     const r = new Ctor();
     r.lang = "en-US";
     r.interimResults = true;
     r.continuous = false;
+
+    // Some phones (iPhone especially) never report that listening ended, so we finish ourselves:
+    // when she taps stop, after a short pause in speech, or after 20 seconds at most.
+    let done = false;
+    let pause: ReturnType<typeof setTimeout> | undefined;
+    const limit = setTimeout(() => finish(), 20000);
+    function finish() {
+      if (done) return;
+      done = true;
+      clearTimeout(pause);
+      clearTimeout(limit);
+      try {
+        r.abort();
+      } catch {}
+      recognition.current = null;
+      finishRef.current = null;
+      setListening(false);
+      if (heard.current.trim()) understand(heard.current);
+    }
+
     r.onresult = (e) => {
       const words = Array.from(e.results, (res) => res[0]?.transcript ?? "").join(" ");
       heard.current = words;
       setText(words);
+      clearTimeout(pause);
+      pause = setTimeout(finish, 2500);
     };
     r.onerror = (e) => {
       if (e.error === "not-allowed" || e.error === "service-not-allowed") {
-        setMessage("Your device didn't let the site use the microphone. You can type what you'd like instead.");
+        setMessage(MIC_OFF);
       } else if (e.error !== "no-speech" && e.error !== "aborted") {
-        setMessage("Sorry, I couldn't hear that. Please try again, or type it instead.");
+        setMessage("Sorry, I couldn't hear that. Please tap the microphone and try again.");
       }
+      finish();
     };
-    r.onend = () => {
-      setListening(false);
-      recognition.current = null;
-      if (heard.current.trim()) understand(heard.current);
-    };
+    r.onend = finish;
     recognition.current = r;
+    finishRef.current = finish;
     setListening(true);
-    r.start();
+    // Starting to listen makes the phone ask "Allow microphone?" the first time.
+    try {
+      r.start();
+    } catch {
+      setMessage(MIC_OFF);
+      finish();
+    }
   }
 
   function stop() {
-    recognition.current?.stop();
+    finishRef.current?.();
   }
 
   return (
     <section className="no-print space-y-5 rounded-3xl border-2 border-accent bg-card p-5 shadow-soft">
-      <div className="space-y-1">
-        <h2 className="text-2xl font-bold">{canListen ? "Ask out loud" : "Ask for a meal plan"}</h2>
-        <p className="text-lg text-muted">
-          Try {canListen ? "saying" : "typing"}: &ldquo;Plan healthy dinners for this week.&rdquo;
+      <div className="flex flex-col items-center gap-3 text-center">
+        <h2 className="text-2xl font-bold">Ask for a meal plan</h2>
+        <button
+          type="button"
+          onClick={listening ? stop : listen}
+          disabled={thinking}
+          aria-label={listening ? "Stop listening" : "Tap the microphone and talk"}
+          className={`flex size-28 items-center justify-center rounded-full bg-accent text-accent-ink shadow-soft hover:opacity-90 disabled:opacity-50 ${listening ? "animate-pulse ring-8 ring-accent/30" : ""}`}
+        >
+          {listening ? <Square aria-hidden className="size-12" /> : <Mic aria-hidden className="size-14" />}
+        </button>
+        <p className="text-xl font-bold" aria-live="polite">
+          {listening ? "Listening… tap when you\u2019re done" : thinking ? "Thinking…" : "Tap the microphone and talk"}
         </p>
+        <p className="text-lg text-muted">Try: &ldquo;Plan healthy dinners for this week.&rdquo;</p>
       </div>
-
-      {canListen &&
-        (listening ? (
-          <Button type="button" onClick={stop} className="w-full sm:w-auto">
-            <Square aria-hidden className="size-6" />
-            Listening… tap when you&apos;re done
-          </Button>
-        ) : (
-          <Button type="button" onClick={listen} disabled={thinking} className="w-full sm:w-auto">
-            <Mic aria-hidden className="size-7" />
-            Tap and talk
-          </Button>
-        ))}
 
       <form
         className="space-y-3"
@@ -123,8 +155,9 @@ export function VoicePlanner() {
         }}
       >
         <label className="block space-y-1">
-          <span className="block text-xl font-bold">{canListen ? "Or type it here" : "What would you like?"}</span>
+          <span className="block text-xl font-bold">Or type it here</span>
           <textarea
+            ref={typingBox}
             value={text}
             onChange={(e) => setText(e.target.value)}
             rows={2}
