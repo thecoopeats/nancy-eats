@@ -1,7 +1,7 @@
 "use client";
 
 import { Mic, Square } from "lucide-react";
-import { useRef, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { useFormStatus } from "react-dom";
 import { fillPlan } from "@/app/plan/actions";
 import { understandPlanRequest, type VoicePlan } from "@/app/plan/voice-actions";
@@ -42,7 +42,11 @@ export function VoicePlanner() {
   const recognition = useRef<Recognition | null>(null);
   const heard = useRef("");
   const finishRef = useRef<(() => void) | null>(null);
+  const lastEnd = useRef(0);
   const typingBox = useRef<HTMLTextAreaElement>(null);
+
+  // Let go of the microphone if she leaves the page while it is listening.
+  useEffect(() => () => finishRef.current?.(), []);
 
   function understand(words: string) {
     setMessage(null);
@@ -87,11 +91,17 @@ export function VoicePlanner() {
       done = true;
       clearTimeout(pause);
       clearTimeout(limit);
+      // Release the microphone and detach this session's handlers, so nothing from it can touch the next one.
+      r.onresult = r.onerror = r.onend = null;
+      try {
+        r.stop();
+      } catch {}
       try {
         r.abort();
       } catch {}
-      recognition.current = null;
-      finishRef.current = null;
+      if (recognition.current === r) recognition.current = null;
+      if (finishRef.current === finish) finishRef.current = null;
+      lastEnd.current = Date.now();
       setListening(false);
       if (heard.current.trim()) understand(heard.current);
     }
@@ -115,13 +125,23 @@ export function VoicePlanner() {
     recognition.current = r;
     finishRef.current = finish;
     setListening(true);
-    // Starting to listen makes the phone ask "Allow microphone?" the first time.
-    try {
-      r.start();
-    } catch {
-      setMessage(MIC_OFF);
-      finish();
-    }
+
+    // Phones need a moment to free the microphone after the last try; starting too soon fails silently.
+    // Starting to listen also makes the phone ask "Allow microphone?" the first time.
+    const wait = Math.max(0, 700 - (Date.now() - lastEnd.current));
+    const begin = (retry: boolean) => {
+      if (done) return;
+      try {
+        r.start();
+      } catch {
+        if (retry) setTimeout(() => begin(false), 600);
+        else {
+          setMessage("Sorry, the microphone is busy. Please wait a moment and tap it again.");
+          finish();
+        }
+      }
+    };
+    setTimeout(() => begin(true), wait);
   }
 
   function stop() {
