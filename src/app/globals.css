@@ -46,6 +46,27 @@
 
 html {
   font-size: 18px;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+/* iPhone: keep content clear of the notch when turned sideways. */
+.safe-x {
+  padding-left: max(1.25rem, env(safe-area-inset-left));
+  padding-right: max(1.25rem, env(safe-area-inset-right));
+}
+
+body {
+  overflow-x: clip;
+  overflow-wrap: break-word;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Never let iPhone Safari zoom in when a box is tapped (it does that below 16px). */
+input,
+select,
+textarea {
+  font-size: max(1rem, 16px);
 }
 
 body {

@@ -8,7 +8,7 @@ export async function SiteHeader() {
 
   return (
     <header className="no-print border-b-2 border-border bg-card/80 backdrop-blur">
-      <div className="max-w-4xl mx-auto px-5 py-4 flex flex-wrap items-center gap-x-6 gap-y-3">
+      <div className="safe-x max-w-4xl mx-auto px-5 py-4 flex flex-wrap items-center gap-x-6 gap-y-3">
         <Link href="/" className="flex items-center gap-3 no-underline">
           <span className="flex size-12 shrink-0 items-center justify-center rounded-full bg-blush text-accent">
             <CookingPot aria-hidden className="size-7" strokeWidth={2} />

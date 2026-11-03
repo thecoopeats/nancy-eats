@@ -29,7 +29,7 @@ export function VoiceDock() {
             flushSync(() => setOpenAt(path));
             assistant.current?.listen();
           }}
-          className="fixed bottom-5 right-5 z-40 flex min-h-16 items-center gap-2 rounded-full bg-accent px-6 text-xl font-bold text-accent-ink shadow-soft hover:opacity-90"
+          className="fixed bottom-[max(1.25rem,env(safe-area-inset-bottom))] right-[max(1.25rem,env(safe-area-inset-right))] z-40 flex min-h-16 items-center gap-2 rounded-full bg-accent px-6 text-xl font-bold text-accent-ink shadow-soft hover:opacity-90"
         >
           <Mic aria-hidden className="size-7" />
           Ask
@@ -39,7 +39,7 @@ export function VoiceDock() {
         <div className="fixed inset-0 z-40 bg-black/30" onClick={() => setOpenAt(null)} aria-hidden />
         <section
           aria-label="Voice helper"
-          className="fixed inset-x-0 bottom-0 z-50 max-h-[90dvh] overflow-y-auto rounded-t-3xl border-2 border-accent bg-card p-5 shadow-soft sm:inset-x-auto sm:bottom-5 sm:right-5 sm:w-[30rem] sm:rounded-3xl"
+          className="fixed inset-x-0 bottom-0 z-50 max-h-[90dvh] overflow-y-auto overscroll-contain rounded-t-3xl border-2 border-accent bg-card p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] shadow-soft sm:inset-x-auto sm:bottom-5 sm:right-5 sm:w-[30rem] sm:rounded-3xl"
         >
           <button
             type="button"

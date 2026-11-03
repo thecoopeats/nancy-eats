@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Suspense } from "react";
 import { Atkinson_Hyperlegible, Lora } from "next/font/google";
 import { SiteHeader } from "@/components/site-header";
@@ -23,6 +23,9 @@ export const metadata: Metadata = {
   description: "Simple recipes, meal plans and grocery lists.",
 };
 
+// viewport-fit=cover lets the page use the whole iPhone screen; the padding below keeps text clear of the notch and home bar.
+export const viewport: Viewport = { width: "device-width", initialScale: 1, viewportFit: "cover" };
+
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="en" className={`${readable.variable} ${elegant.variable} h-full antialiased`}>
@@ -30,7 +33,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         <Suspense fallback={<div className="h-20 border-b-2 border-border bg-card/80" />}>
           <SiteHeader />
         </Suspense>
-        <main className="flex-1 w-full max-w-4xl mx-auto px-5 py-8">
+        <main className="safe-x flex-1 w-full max-w-4xl mx-auto px-5 py-8 pb-32 sm:pb-8">
           <Suspense fallback={<p className="text-xl text-muted">Loading…</p>}>{children}</Suspense>
         </main>
         <Suspense fallback={null}>

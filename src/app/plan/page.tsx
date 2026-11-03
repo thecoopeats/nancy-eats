@@ -58,7 +58,7 @@ export default async function PlanPage(props: PageProps<"/plan">) {
           <div className="flex flex-wrap gap-5">
             <label className="space-y-1">
               <span className="block text-xl font-bold">Starting</span>
-              <input type="date" name="start" defaultValue={now} min={now} className="min-h-14 rounded-xl border-2 border-border bg-card px-3 text-xl" />
+              <input type="date" name="start" defaultValue={now} min={now} className="min-h-14 min-w-0 max-w-full rounded-xl border-2 border-border bg-card px-3 text-xl" />
             </label>
             <label className="space-y-1">
               <span className="block text-xl font-bold">For how many days?</span>
