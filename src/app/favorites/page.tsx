@@ -55,7 +55,7 @@ export default async function FavoritesPage() {
       </section>
 
 
-      <section className="space-y-4 rounded-3xl border-2 border-border bg-card shadow-soft p-5">
+      <section id="import" className="space-y-4 rounded-3xl border-2 border-border bg-card shadow-soft p-5">
         <h2 className="text-3xl font-bold">Save a recipe from another website</h2>
         <p className="text-xl text-muted">
           Paste the web address of any recipe. We&apos;ll keep just the ingredients and steps, without the ads.

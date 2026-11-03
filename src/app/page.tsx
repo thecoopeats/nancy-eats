@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { ArrowRight, CalendarDays, Heart, Search, ShoppingBasket } from "lucide-react";
 import { RandomMeal } from "@/components/random-meal";
-import { VoicePlanner } from "@/components/voice-planner";
+import { VoiceAssistant } from "@/components/voice-assistant";
 import { auth } from "@/auth";
 
 const tiles = [
@@ -42,7 +42,9 @@ export default async function Home() {
   return (
     <section className="space-y-8">
       <h1 className="text-4xl font-bold">Hello{session.user.name ? `, ${session.user.name}` : ""}!</h1>
-      <VoicePlanner />
+      <section className="no-print rounded-3xl border-2 border-accent bg-card p-5 shadow-soft">
+        <VoiceAssistant />
+      </section>
       <div className="grid gap-5 sm:grid-cols-2">
         {tiles.map((t) => (
           <Link

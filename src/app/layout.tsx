@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Suspense } from "react";
 import { Atkinson_Hyperlegible, Lora } from "next/font/google";
 import { SiteHeader } from "@/components/site-header";
+import { VoiceDockGate } from "@/components/voice-dock-gate";
 import "./globals.css";
 
 const readable = Atkinson_Hyperlegible({
@@ -32,6 +33,9 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         <main className="flex-1 w-full max-w-4xl mx-auto px-5 py-8">
           <Suspense fallback={<p className="text-xl text-muted">Loading…</p>}>{children}</Suspense>
         </main>
+        <Suspense fallback={null}>
+          <VoiceDockGate />
+        </Suspense>
       </body>
     </html>
   );

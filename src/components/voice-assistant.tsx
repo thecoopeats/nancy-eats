@@ -1,12 +1,12 @@
 "use client";
 
-import { Mic, Square } from "lucide-react";
+import { CheckCircle2, Mic, Square } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useRef, useState, useTransition } from "react";
-import { useFormStatus } from "react-dom";
-import { fillPlan } from "@/app/plan/actions";
-import { understandPlanRequest, type VoicePlan, type VoiceSearch } from "@/app/plan/voice-actions";
+import { usePathname, useRouter } from "next/navigation";
+import { useEffect, useImperativeHandle, useRef, useState, type Ref } from "react";
+import { runVoiceAction, understandRequest, type VoiceReply } from "@/app/voice-actions";
 import { Button } from "@/components/button";
+import type { VoiceOutcome } from "@/lib/voice/registry";
 
 // The browser's speech-to-text (Chrome, Edge, Safari). Not in TypeScript's built-in types yet.
 type Recognition = {
@@ -34,16 +34,20 @@ function getRecognition(): RecognitionCtor | null {
 const MIC_OFF =
   "The microphone is turned off for this site. To turn it on: on iPhone or iPad, open the Settings app, tap Safari, tap Microphone and choose Allow. On Android, tap the lock next to the web address, tap Permissions and turn on Microphone. Then tap the microphone again.";
 
-const FILTERS = ["highProtein", "lowCalorie", "seasonal", "picky", "comfort"] as const;
+const SORRY = "Sorry, something went wrong. Please try again.";
 
-/** "Ask out loud": say what you'd like, see it in plain words, tap Yes to fill the plan. */
-export function VoicePlanner() {
+export type VoiceHandle = { listen(): void };
+
+/** "Ask out loud": say or type what you'd like. Harmless things happen at once; bigger ones ask Yes or No first. */
+export function VoiceAssistant({ ref }: { ref?: Ref<VoiceHandle> }) {
+  const path = usePathname();
+  const router = useRouter();
   const [listening, setListening] = useState(false);
   const [text, setText] = useState("");
-  const [plan, setPlan] = useState<VoicePlan | null>(null);
-  const [search, setSearch] = useState<VoiceSearch | null>(null);
+  const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
-  const [thinking, startThinking] = useTransition();
+  const [question, setQuestion] = useState<Extract<VoiceReply, { kind: "ask" }> | null>(null);
+  const [done, setDone] = useState<VoiceOutcome | null>(null);
   const recognition = useRef<Recognition | null>(null);
   const heard = useRef("");
   const finishRef = useRef<(() => void) | null>(null);
@@ -52,34 +56,61 @@ export function VoicePlanner() {
 
   // Let go of the microphone if she leaves the page while it is listening.
   useEffect(() => () => finishRef.current?.(), []);
+  useImperativeHandle(ref, () => ({ listen }));
 
-  function understand(words: string) {
+  function clear() {
     setMessage(null);
-    setPlan(null);
-    setSearch(null);
+    setQuestion(null);
+    setDone(null);
+  }
+
+  function show(reply: VoiceReply) {
+    if (reply.kind === "say") setMessage(reply.message);
+    else if (reply.kind === "ask") setQuestion(reply);
+    else {
+      setDone(reply.outcome);
+      if (reply.outcome.print) setTimeout(() => window.print(), 150);
+      if (reply.outcome.href && reply.outcome.open) router.push(reply.outcome.href);
+    }
+  }
+
+  async function send(words: string) {
+    clear();
     if (!words.trim()) {
       setMessage("I didn't catch anything. Please try again.");
       return;
     }
-    startThinking(async () => {
-      const result = await understandPlanRequest(words);
-      if (!result.ok) setMessage(result.message);
-      else if (result.kind === "search") setSearch(result.search);
-      else setPlan(result.plan);
-    });
+    setBusy(true);
+    try {
+      show(await understandRequest(words, path));
+    } catch {
+      setMessage(SORRY);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function yes() {
+    if (!question) return;
+    const asked = question;
+    clear();
+    setBusy(true);
+    try {
+      show(await runVoiceAction(asked.name, asked.args, path));
+    } catch {
+      setMessage(SORRY);
+    } finally {
+      setBusy(false);
+    }
   }
 
   function listen() {
-    setMessage(null);
-    setPlan(null);
-    setSearch(null);
+    clear();
     const Ctor = getRecognition();
     if (!Ctor) {
       // Some phone browsers can't listen directly, but every phone keyboard has its own microphone key.
       typingBox.current?.focus();
-      setMessage(
-        "To talk: tap the little microphone on your keyboard, say what you'd like, then tap \"Go\".",
-      );
+      setMessage('To talk: tap the little microphone on your keyboard, say what you\'d like, then tap "Go".');
       return;
     }
     setText("");
@@ -91,12 +122,12 @@ export function VoicePlanner() {
 
     // Some phones (iPhone especially) never report that listening ended, so we finish ourselves:
     // when she taps stop, after a short pause in speech, or after 20 seconds at most.
-    let done = false;
+    let finished = false;
     let pause: ReturnType<typeof setTimeout> | undefined;
     const limit = setTimeout(() => finish(), 20000);
     function finish() {
-      if (done) return;
-      done = true;
+      if (finished) return;
+      finished = true;
       clearTimeout(pause);
       clearTimeout(limit);
       // Release the microphone and detach this session's handlers, so nothing from it can touch the next one.
@@ -111,7 +142,7 @@ export function VoicePlanner() {
       if (finishRef.current === finish) finishRef.current = null;
       lastEnd.current = Date.now();
       setListening(false);
-      if (heard.current.trim()) understand(heard.current);
+      if (heard.current.trim()) void send(heard.current);
     }
 
     r.onresult = (e) => {
@@ -138,7 +169,7 @@ export function VoicePlanner() {
     // Starting to listen also makes the phone ask "Allow microphone?" the first time.
     const wait = Math.max(0, 700 - (Date.now() - lastEnd.current));
     const begin = (retry: boolean) => {
-      if (done) return;
+      if (finished) return;
       try {
         r.start();
       } catch {
@@ -156,24 +187,33 @@ export function VoicePlanner() {
     finishRef.current?.();
   }
 
+  const onRecipe = /^\/(recipes\/\d+|my-recipes\/)/.test(path);
+  const examples = onRecipe
+    ? ["Add this to my favorites", "Add this to my grocery list", "Put this on Tuesday dinner"]
+    : ["Plan healthy dinners for this week", "Find a chicken soup recipe", "Add milk to my grocery list"];
+
   return (
-    <section className="no-print space-y-5 rounded-3xl border-2 border-accent bg-card p-5 shadow-soft">
+    <div className="space-y-5">
       <div className="flex flex-col items-center gap-3 text-center">
-        <h2 className="text-2xl font-bold">Ask for a meal plan or a recipe</h2>
+        <h2 className="text-2xl font-bold">What would you like to do?</h2>
         <button
           type="button"
           onClick={listening ? stop : listen}
-          disabled={thinking}
+          disabled={busy}
           aria-label={listening ? "Stop listening" : "Tap the microphone and talk"}
           className={`flex size-28 items-center justify-center rounded-full bg-accent text-accent-ink shadow-soft hover:opacity-90 disabled:opacity-50 ${listening ? "animate-pulse ring-8 ring-accent/30" : ""}`}
         >
           {listening ? <Square aria-hidden className="size-12" /> : <Mic aria-hidden className="size-14" />}
         </button>
         <p className="text-xl font-bold" aria-live="polite">
-          {listening ? "Listening… tap when you\u2019re done" : thinking ? "Thinking…" : "Tap the microphone and talk"}
+          {listening ? "Listening… tap when you\u2019re done" : busy ? "Working on it…" : "Tap the microphone and talk"}
         </p>
         <p className="text-lg text-muted">
-          Try: &ldquo;Plan healthy dinners for this week&rdquo; or &ldquo;Find a chicken soup recipe.&rdquo;
+          Try: {examples.map((e, i) => (
+            <span key={e}>
+              {i > 0 && " · "}&ldquo;{e}&rdquo;
+            </span>
+          ))}
         </p>
       </div>
 
@@ -181,7 +221,7 @@ export function VoicePlanner() {
         className="space-y-3"
         onSubmit={(e) => {
           e.preventDefault();
-          understand(text);
+          void send(text);
         }}
       >
         <label className="block space-y-1">
@@ -196,8 +236,8 @@ export function VoicePlanner() {
           />
         </label>
         {!listening && (
-          <Button type="submit" disabled={thinking || !text.trim()} className="w-full sm:w-auto">
-            {thinking ? "Thinking…" : "Go"}
+          <Button type="submit" disabled={busy || !text.trim()} className="w-full sm:w-auto">
+            {busy ? "Working on it…" : "Go"}
           </Button>
         )}
       </form>
@@ -208,20 +248,34 @@ export function VoicePlanner() {
         </p>
       )}
 
-      {search && (
-        <div className="space-y-4 rounded-2xl border-2 border-accent bg-blush p-4">
-          <p className="text-2xl font-bold">{search.summary}</p>
-          <div className="flex flex-wrap gap-3">
+      {done && (
+        <div role="status" className="space-y-3 rounded-2xl border-2 border-accent bg-sage/40 p-4">
+          <p className="flex items-start gap-3 text-xl font-bold">
+            <CheckCircle2 aria-hidden className="mt-0.5 size-7 shrink-0 text-accent" />
+            {done.message}
+          </p>
+          {done.href && !done.open && (
             <Link
-              href={search.href}
+              href={done.href}
               className="inline-flex min-h-14 items-center justify-center rounded-full bg-accent px-7 text-xl font-bold text-accent-ink no-underline shadow-soft hover:opacity-90"
             >
-              Yes, show recipes
+              See it
             </Link>
+          )}
+        </div>
+      )}
+
+      {question && (
+        <div className="space-y-4 rounded-2xl border-2 border-accent bg-blush p-4">
+          <p className="text-2xl font-bold">{question.question}</p>
+          <div className="flex flex-wrap gap-3">
+            <Button type="button" onClick={yes} disabled={busy}>
+              Yes
+            </Button>
             <button
               type="button"
               onClick={() => {
-                setSearch(null);
+                setQuestion(null);
                 setText("");
               }}
               className="min-h-14 rounded-full px-6 text-xl font-bold text-muted underline"
@@ -231,45 +285,6 @@ export function VoicePlanner() {
           </div>
         </div>
       )}
-
-      {plan && (
-        <form action={fillPlan} className="space-y-4 rounded-2xl border-2 border-accent bg-blush p-4">
-          <p className="text-2xl font-bold">{plan.summary}</p>
-          <input type="hidden" name="start" value={plan.start} />
-          <input type="hidden" name="days" value={plan.days} />
-          <input type="hidden" name="country" value={plan.country} />
-          <input type="hidden" name="avoid" value={plan.avoid} />
-          {plan.meals.map((m) => (
-            <input key={m} type="hidden" name={m} value="on" />
-          ))}
-          {FILTERS.filter((f) => plan[f]).map((f) => (
-            <input key={f} type="hidden" name={f} value="on" />
-          ))}
-          {plan.replace && <input type="hidden" name="replace" value="on" />}
-          <div className="flex flex-wrap gap-3">
-            <YesButton />
-            <button
-              type="button"
-              onClick={() => {
-                setPlan(null);
-                setText("");
-              }}
-              className="min-h-14 rounded-full px-6 text-xl font-bold text-muted underline"
-            >
-              No, try again
-            </button>
-          </div>
-        </form>
-      )}
-    </section>
-  );
-}
-
-function YesButton() {
-  const { pending } = useFormStatus();
-  return (
-    <Button type="submit" disabled={pending}>
-      {pending ? "Planning…" : "Yes, plan it"}
-    </Button>
+    </div>
   );
 }
