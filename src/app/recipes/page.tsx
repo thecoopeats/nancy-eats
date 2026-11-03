@@ -38,6 +38,7 @@ function readFilters(sp: Record<string, string | string[] | undefined>): SearchF
     seasonal: one("seasonal") === "on",
     picky: one("picky") === "on",
     comfort: one("comfort") === "on",
+    avoid: one("avoid")?.slice(0, 200),
   };
 }
 
@@ -55,7 +56,7 @@ export default async function RecipesPage(props: PageProps<"/recipes">) {
   const sp = await props.searchParams;
   const filters = readFilters(sp);
   const shared = readShared(sp);
-  const activeCount = [filters.meal, filters.country, filters.highProtein, filters.lowCalorie, filters.seasonal, filters.picky, filters.comfort, shared.on].filter(Boolean).length;
+  const activeCount = [filters.meal, filters.country, filters.highProtein, filters.lowCalorie, filters.seasonal, filters.picky, filters.comfort, filters.avoid, shared.on].filter(Boolean).length;
 
   return (
     <section className="space-y-8">
@@ -105,6 +106,11 @@ export default async function RecipesPage(props: PageProps<"/recipes">) {
               </label>
             ))}
           </fieldset>
+          <label className="block space-y-2">
+            <span className="text-xl font-bold">Ingredients to avoid (optional)</span>
+            <input name="avoid" defaultValue={filters.avoid} placeholder="mushrooms, shellfish, nuts…" className={field} />
+            <span className="block text-lg text-muted">Type any foods you don&apos;t want, with a comma between each.</span>
+          </label>
           <label className="flex min-h-14 cursor-pointer items-start gap-3 rounded-2xl border-2 border-border bg-sage/40 p-3 sm:p-4 has-[:checked]:border-accent has-[:checked]:bg-accent/10">
             <input type="checkbox" name="shared" defaultChecked={shared.on} className="mt-1 size-6 shrink-0 accent-[var(--accent)]" />
             <span>

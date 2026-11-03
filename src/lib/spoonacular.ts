@@ -51,6 +51,8 @@ export type SearchFilters = {
   seasonal?: boolean;
   picky?: boolean;
   comfort?: boolean;
+  /** Ingredients to leave out, typed by the user, e.g. "mushrooms, shellfish". */
+  avoid?: string;
 };
 
 export type RecipeTile = {
@@ -82,6 +84,17 @@ const COMFORT_DISHES = ["casserole", "stew", "pot pie", "mac and cheese", "meatl
 // Strong flavors picky eaters often avoid.
 const PICKY_EXCLUDE = "anchovies,olives,blue cheese,cilantro,mushrooms,capers,liver,sardines";
 
+/** Tidy typed ingredients ("Mushrooms and  olives") into a sorted, de-duplicated list so the same words always share a saved answer. */
+export function cleanAvoid(text: string | undefined): string[] {
+  if (!text) return [];
+  const words = text
+    .toLowerCase()
+    .split(/,|;|\n|\band\b|&/)
+    .map((w) => w.replace(/[^a-z' -]/g, "").replace(/\s+/g, " ").trim())
+    .filter((w) => w.length > 1 && w.length <= 40);
+  return [...new Set(words)].sort().slice(0, 12);
+}
+
 function pick<T>(items: readonly T[]): T {
   return items[Math.floor(Math.random() * items.length)];
 }
@@ -104,7 +117,8 @@ export function toSearchParams(f: SearchFilters) {
     minProtein: f.highProtein ? 25 : undefined,
     maxCalories: f.lowCalorie ? 500 : undefined,
     includeIngredients: f.seasonal ? pick(IN_SEASON[new Date().getMonth()]) : undefined,
-    excludeIngredients: f.picky ? PICKY_EXCLUDE : undefined,
+    excludeIngredients:
+      [...new Set([...(f.picky ? PICKY_EXCLUDE.split(",") : []), ...cleanAvoid(f.avoid)])].join(",") || undefined,
     offset: 0,
   };
 }
