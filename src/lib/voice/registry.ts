@@ -12,7 +12,7 @@ import { deleteSaved, setFavorite, setSavedFavorite } from "@/app/actions";
 import { addOwnItem, addRecipeToList, addWeekToList, clearList, removeChecked, setChecked } from "@/app/groceries/actions";
 import { addToPlan, clearMeal, fillPlan, swapMeal } from "@/app/plan/actions";
 import { db } from "@/db";
-import { groceryItems, MEALS, plannedMeals, type Meal } from "@/db/schema";
+import { groceryItems, plannedMeals } from "@/db/schema";
 import { addDays, formatDay, isDay } from "@/lib/dates";
 import { requireUser } from "@/lib/require-user";
 import { COUNTRIES, MEAL_TYPES, searchRecipes, toSearchParams } from "@/lib/spoonacular";
@@ -73,7 +73,6 @@ const dayText = (date: string, ctx: VoiceContext) =>
   date === ctx.today ? "today" : date === addDays(ctx.today, 1) ? "tomorrow" : formatDay(date);
 
 const DATE = { type: "string", description: "A day as YYYY-MM-DD. Use today if they don't say." };
-const MEAL = { type: "string", enum: [...MEALS], description: "breakfast, lunch or dinner. Dinner if they don't say." };
 
 /** The recipe she is looking at, from the page address. */
 function recipeOnPage(ctx: VoiceContext): { spoonacularId: number } | { savedRecipeId: string } | null {
@@ -91,9 +90,9 @@ function form(values: Record<string, string>) {
   return fd;
 }
 
-async function plannedAt(userId: string, date: string, meal: Meal) {
+async function plannedAt(userId: string, date: string) {
   return db.query.plannedMeals.findFirst({
-    where: and(eq(plannedMeals.userId, userId), eq(plannedMeals.date, date), eq(plannedMeals.meal, meal)),
+    where: and(eq(plannedMeals.userId, userId), eq(plannedMeals.date, date), eq(plannedMeals.meal, "dinner")),
   });
 }
 
@@ -211,16 +210,15 @@ const search_recipes = action<SearchArgs>({
 
 // ---- Meal plan ----
 
-type PlanArgs = ReturnType<typeof filtersOf> & { start: string; days: number; meals: Meal[]; replace: boolean };
+type PlanArgs = ReturnType<typeof filtersOf> & { start: string; days: number; replace: boolean };
 
 const plan_meals = action<PlanArgs>({
   name: "plan_meals",
   description:
-    'Fill the meal plan with suggested recipes for several days: "meal plan for me this week, healthy dinners", "plan lunches for 3 days", "plan breakfast and dinner tomorrow". Not for one named recipe (use plan_a_recipe).',
+    'Fill the meal plan with suggested recipes for several days: "meal plan for me this week", "plan healthy dinners for 3 days". The planner only plans dinners. Not for one named recipe (use plan_a_recipe).',
   properties: {
     start: DATE,
     days: { type: "integer", description: '1 to 14. "This week" means 7.' },
-    meals: { type: "array", items: { type: "string", enum: [...MEALS] }, description: "Dinner only if they don't say." },
     replace: { type: "boolean", description: "True only if they ask to start over or replace what is already planned." },
     country: COUNTRY,
     avoid: AVOID,
@@ -228,20 +226,17 @@ const plan_meals = action<PlanArgs>({
   },
   ask: true,
   parse: (raw, ctx) => {
-    const meals = (Array.isArray(raw.meals) ? raw.meals : []).filter((m): m is Meal => (MEALS as readonly string[]).includes(String(m)));
     return {
       start: day(raw.start, ctx),
       days: whole(raw.days, 1, 14, 7),
-      meals: meals.length ? [...new Set(meals)] : ["dinner"],
       replace: bool(raw.replace),
       ...filtersOf(raw),
     };
   },
   summary: (a, ctx) =>
-    `Plan ${a.meals.join(" and ")} for ${a.days === 1 ? "1 day" : `${a.days} days`}, starting ${dayText(a.start, ctx)}${filterText(a)}${a.replace ? ", replacing what is planned" : ""}?`,
+    `Plan dinners for ${a.days === 1 ? "1 day" : `${a.days} days`}, starting ${dayText(a.start, ctx)}${filterText(a)}${a.replace ? ", replacing what is planned" : ""}?`,
   run: async (a) => {
     const fd = form({ start: a.start, days: String(a.days), country: a.country, avoid: a.avoid });
-    for (const m of a.meals) fd.set(m, "on");
     for (const [k] of FILTER_WORDS) if (a[k]) fd.set(k, "on");
     if (a.replace) fd.set("replace", "on");
     await fillPlan(fd); // opens the Meal plan when done
@@ -249,14 +244,14 @@ const plan_meals = action<PlanArgs>({
   },
 });
 
-type SlotArgs = { date: string; meal: Meal };
-const slotParse = (raw: Raw, ctx: VoiceContext): SlotArgs => ({ date: day(raw.date, ctx), meal: (oneOf(raw.meal, MEALS) || "dinner") as Meal });
-const slotText = (a: SlotArgs, ctx: VoiceContext) => `${a.meal} ${dayText(a.date, ctx)}`;
+type SlotArgs = { date: string };
+const slotParse = (raw: Raw, ctx: VoiceContext): SlotArgs => ({ date: day(raw.date, ctx) });
+const slotText = (a: SlotArgs, ctx: VoiceContext) => `dinner ${dayText(a.date, ctx)}`;
 
 const plan_a_recipe = action<SlotArgs & { recipe: string; id: number }>({
   name: "plan_a_recipe",
-  description: 'Put one named recipe on the meal plan: "add chicken parmesan to Tuesday dinner", "have pancakes for breakfast tomorrow". On a recipe page with no name given, use add_this_recipe_to_plan instead.',
-  properties: { recipe: { type: "string", description: "The dish to look for." }, date: DATE, meal: MEAL },
+  description: 'Put one named recipe on the meal plan: "add chicken parmesan to Tuesday dinner". On a recipe page with no name given, use add_this_recipe_to_plan instead.',
+  properties: { recipe: { type: "string", description: "The dish to look for." }, date: DATE },
   ask: true,
   parse: (raw, ctx) => {
     const recipe = str(raw.recipe, 100);
@@ -271,21 +266,21 @@ const plan_a_recipe = action<SlotArgs & { recipe: string; id: number }>({
   },
   summary: (a, ctx) => `Put "${a.recipe}" on ${slotText(a, ctx)}?`,
   run: async (a, ctx) => {
-    await addToPlan({ spoonacularId: a.id }, form({ date: a.date, meal: a.meal }));
+    await addToPlan({ spoonacularId: a.id }, form({ date: a.date }));
     return { message: `Added "${a.recipe}" to ${slotText(a, ctx)}.`, href: "/plan", open: true };
   },
 });
 
 const swap_planned_meal = action<SlotArgs>({
   name: "swap_planned_meal",
-  description: 'Replace a meal that is already planned with something different: "something else for Tuesday dinner", "change tomorrow\'s lunch".',
-  properties: { date: DATE, meal: MEAL },
+  description: 'Replace a meal that is already planned with something different: "something else for Tuesday dinner", "change tomorrow\'s dinner".',
+  properties: { date: DATE },
   ask: false,
   parse: slotParse,
   summary: (a, ctx) => `Finding something else for ${slotText(a, ctx)}…`,
   run: async (a, ctx) => {
     const user = await requireUser();
-    const row = await plannedAt(user.id, a.date, a.meal);
+    const row = await plannedAt(user.id, a.date);
     if (!row) return { message: `Nothing is planned for ${slotText(a, ctx)} yet.`, href: "/plan" };
     await swapMeal(row.id);
     return { message: `Found something else for ${slotText(a, ctx)}.`, href: "/plan" };
@@ -294,18 +289,18 @@ const swap_planned_meal = action<SlotArgs>({
 
 const remove_planned_meal = action<SlotArgs>({
   name: "remove_planned_meal",
-  description: 'Take a planned meal off the meal plan: "remove Tuesday dinner", "clear tomorrow\'s lunch".',
-  properties: { date: DATE, meal: MEAL },
+  description: 'Take a planned meal off the meal plan: "remove Tuesday dinner", "clear tomorrow\'s dinner".',
+  properties: { date: DATE },
   ask: true,
   parse: slotParse,
   summary: async (a, ctx) => {
     const user = await requireUser();
-    const row = await plannedAt(user.id, a.date, a.meal);
+    const row = await plannedAt(user.id, a.date);
     return row ? `Take "${row.title}" off ${slotText(a, ctx)}?` : `Take ${slotText(a, ctx)} off your plan?`;
   },
   run: async (a, ctx) => {
     const user = await requireUser();
-    const row = await plannedAt(user.id, a.date, a.meal);
+    const row = await plannedAt(user.id, a.date);
     if (!row) return { message: `Nothing is planned for ${slotText(a, ctx)}.`, href: "/plan" };
     await clearMeal(row.id);
     return { message: `Removed ${slotText(a, ctx)} from your plan.`, href: "/plan" };
@@ -424,15 +419,15 @@ const add_this_recipe_to_grocery_list = action<{ people: number }>({
 
 const add_this_recipe_to_plan = action<SlotArgs>({
   name: "add_this_recipe_to_plan",
-  description: 'On a recipe page: "add this to Tuesday dinner", "let\'s have this tomorrow for lunch".',
-  properties: { date: DATE, meal: MEAL },
+  description: 'On a recipe page: "add this to Tuesday dinner", "let\'s have this tomorrow night".',
+  properties: { date: DATE },
   ask: false,
   parse: (raw, ctx) => (recipeOnPage(ctx) ? slotParse(raw, ctx) : OPEN_A_RECIPE),
   summary: (a, ctx) => `Putting this recipe on ${slotText(a, ctx)}…`,
   run: async (a, ctx) => {
     const on = recipeOnPage(ctx);
     if (!on) return { message: OPEN_A_RECIPE };
-    await addToPlan(on, form({ date: a.date, meal: a.meal })); // opens the Meal plan when done
+    await addToPlan(on, form({ date: a.date })); // opens the Meal plan when done
     return { message: `Added to ${slotText(a, ctx)}.`, href: "/plan", open: true };
   },
 });

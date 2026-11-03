@@ -4,7 +4,6 @@ import { Suspense } from "react";
 import { Button } from "@/components/button";
 import { RecipeResults } from "@/components/recipe-results";
 import { SharedWeek } from "@/components/shared-week";
-import type { Meal } from "@/db/schema";
 import { requireUser } from "@/lib/require-user";
 import {
   COUNTRIES,
@@ -156,8 +155,6 @@ async function Results({ filters }: { filters: SearchFilters }) {
   return <RecipeResults initial={data.tiles} total={data.total} params={params} />;
 }
 
-const PLAN_MEAL: Record<string, Meal> = { Breakfast: "breakfast", Lunch: "lunch" };
-
 async function SharedResults(props: { filters: SearchFilters; set: number; sp: Record<string, string | string[] | undefined> }) {
   let data;
   try {
@@ -186,7 +183,6 @@ async function SharedResults(props: { filters: SearchFilters; set: number; sp: R
     <SharedWeek
       tiles={data.tiles}
       shared={data.shared}
-      meal={PLAN_MEAL[props.filters.meal ?? ""] ?? "dinner"}
       againHref={more ? `/recipes?${next}` : null}
     />
   );

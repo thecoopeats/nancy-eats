@@ -6,7 +6,7 @@ import { auth } from "@/auth";
 
 const tiles = [
   { href: "/recipes", title: "Find a recipe", text: "Search thousands of recipes and see them in simple steps.", Icon: Search, tint: "bg-peach" },
-  { href: "/plan", title: "Plan my week", text: "Pick breakfast, lunch or dinner for the days ahead.", Icon: CalendarDays, tint: "bg-lavender" },
+  { href: "/plan", title: "Plan my week", text: "Plan dinners for the days ahead.", Icon: CalendarDays, tint: "bg-lavender" },
   { href: "/groceries", title: "Grocery list", text: "Everything you need for your recipes, ready to tick off.", Icon: ShoppingBasket, tint: "bg-sage" },
   { href: "/favorites", title: "My Favorites", text: "Recipes you loved and want to make again.", Icon: Heart, tint: "bg-blush" },
 ];

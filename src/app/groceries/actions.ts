@@ -76,6 +76,7 @@ export async function addWeekToList(from: string, count = 7) {
   const meals = await db.query.plannedMeals.findMany({
     where: and(
       eq(plannedMeals.userId, user.id),
+      eq(plannedMeals.meal, "dinner"),
       gte(plannedMeals.date, from),
       lte(plannedMeals.date, addDays(from, days - 1)),
     ),

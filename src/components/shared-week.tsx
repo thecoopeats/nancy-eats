@@ -2,16 +2,14 @@ import { ShoppingBasket } from "lucide-react";
 import Link from "next/link";
 import { addWeekToPlan } from "@/app/plan/actions";
 import { ActionButton } from "@/components/action-button";
-import { MEAL_STYLE } from "@/components/meal-label";
 import { RecipeTile } from "@/components/recipe-tile";
-import { MEALS, type Meal } from "@/db/schema";
 import { addDays, formatDay, today } from "@/lib/dates";
 import type { RecipeTile as Tile } from "@/lib/spoonacular";
 
 const select = "block w-full min-h-14 rounded-xl border-2 border-border bg-card px-3 text-xl";
 
 /** A week of recipes that share ingredients, with one button to put them all on the meal plan. */
-export function SharedWeek(props: { tiles: Tile[]; shared: string[]; meal: Meal; againHref: string | null }) {
+export function SharedWeek(props: { tiles: Tile[]; shared: string[]; againHref: string | null }) {
   const { tiles, shared } = props;
   const start = today();
   return (
@@ -32,8 +30,8 @@ export function SharedWeek(props: { tiles: Tile[]; shared: string[]; meal: Meal;
         )}
 
         <form action={addWeekToPlan.bind(null, tiles)} className="space-y-4 border-t-2 border-border pt-4">
-          <p className="text-xl font-bold">Put all {tiles.length} on my meal plan, one a day:</p>
-          <div className="grid gap-4 sm:grid-cols-2">
+          <p className="text-xl font-bold">Put all {tiles.length} on my dinner plan, one a day:</p>
+          <div>
             <label className="block space-y-1">
               <span className="block text-lg font-bold">Starting</span>
               <select name="start" defaultValue={start} className={select}>
@@ -44,20 +42,10 @@ export function SharedWeek(props: { tiles: Tile[]; shared: string[]; meal: Meal;
                 ))}
               </select>
             </label>
-            <label className="block space-y-1">
-              <span className="block text-lg font-bold">For</span>
-              <select name="meal" defaultValue={props.meal} className={select}>
-                {MEALS.map((m) => (
-                  <option key={m} value={m}>
-                    {MEAL_STYLE[m].label}
-                  </option>
-                ))}
-              </select>
-            </label>
           </div>
-          <ActionButton pendingText="Adding…">Add these to my meal plan</ActionButton>
+          <ActionButton pendingText="Adding…">Add these to my dinner plan</ActionButton>
           <p className="text-lg text-muted">
-            This takes the place of anything already planned for that meal on those days. Then you can add them all to
+            This takes the place of anything already planned for dinner on those days. Then you can add them all to
             your grocery list from the meal plan.
           </p>
         </form>

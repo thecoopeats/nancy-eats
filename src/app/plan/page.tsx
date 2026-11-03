@@ -6,9 +6,8 @@ import { addWeekToList } from "@/app/groceries/actions";
 import { clearMeal, fillPlan, swapMeal } from "@/app/plan/actions";
 import { ActionButton } from "@/components/action-button";
 import { Button } from "@/components/button";
-import { MEAL_STYLE, MealChip } from "@/components/meal-label";
 import { db } from "@/db";
-import { MEALS, plannedMeals } from "@/db/schema";
+import { plannedMeals } from "@/db/schema";
 import { addDays, formatDay, isDay, today } from "@/lib/dates";
 import { difficulty, formatMinutes } from "@/lib/recipe";
 import { requireUser } from "@/lib/require-user";
@@ -37,9 +36,9 @@ export default async function PlanPage(props: PageProps<"/plan">) {
   const last = days[days.length - 1];
 
   const rows = await db.query.plannedMeals.findMany({
-    where: and(eq(plannedMeals.userId, user.id), gte(plannedMeals.date, days[0]), lte(plannedMeals.date, last)),
+    where: and(eq(plannedMeals.userId, user.id), gte(plannedMeals.date, days[0]), lte(plannedMeals.date, last), eq(plannedMeals.meal, "dinner")),
   });
-  const bySlot = new Map(rows.map((r) => [`${r.date}|${r.meal}`, r]));
+  const byDay = new Map(rows.map((r) => [r.date, r]));
 
   return (
     <div className="space-y-10">
@@ -54,7 +53,7 @@ export default async function PlanPage(props: PageProps<"/plan">) {
       )}
 
       <details className="no-print rounded-3xl border-2 border-border bg-card shadow-soft p-5" open={rows.length === 0}>
-        <summary className="cursor-pointer text-2xl font-bold">Plan my meals</summary>
+        <summary className="cursor-pointer text-2xl font-bold">Plan my dinners</summary>
         <form action={fillPlan} className="mt-5 space-y-5">
           <div className="flex flex-wrap gap-5">
             <label className="space-y-1">
@@ -72,17 +71,6 @@ export default async function PlanPage(props: PageProps<"/plan">) {
               </select>
             </label>
           </div>
-          <fieldset className="space-y-2">
-            <legend className="text-xl font-bold">Which meals?</legend>
-            <div className="flex flex-wrap gap-3">
-              {MEALS.map((m) => (
-                <label key={m} className={checkBox}>
-                  <input type="checkbox" name={m} defaultChecked={m === "dinner"} className="size-6 accent-[var(--accent)]" />
-                  <MealChip meal={m} />
-                </label>
-              ))}
-            </div>
-          </fieldset>
           <fieldset className="space-y-2">
             <legend className="text-xl font-bold">Anything special? (optional)</legend>
             <div className="flex flex-wrap gap-3">
@@ -113,7 +101,7 @@ export default async function PlanPage(props: PageProps<"/plan">) {
             Leave that unticked to keep the meals you&apos;ve planned and only fill empty spots. To choose your own, open
             any recipe and tap &ldquo;Add to meal plan&rdquo;.
           </p>
-          <Button type="submit">Suggest recipes</Button>
+          <Button type="submit">Suggest dinners</Button>
         </form>
       </details>
 
@@ -154,11 +142,7 @@ export default async function PlanPage(props: PageProps<"/plan">) {
                 {formatDay(day)}
                 {day === now && <span className="ml-3 rounded-full bg-accent px-3 py-0.5 align-middle font-sans text-base text-accent-ink">Today</span>}
               </h3>
-              <div className="grid gap-3 md:grid-cols-3">
-                {MEALS.map((meal) => (
-                  <Slot key={meal} meal={meal} row={bySlot.get(`${day}|${meal}`)} />
-                ))}
-              </div>
+              <Dinner row={byDay.get(day)} />
             </li>
           ))}
         </ol>
@@ -172,10 +156,9 @@ export default async function PlanPage(props: PageProps<"/plan">) {
   );
 }
 
-function Slot({ meal, row }: { meal: (typeof MEALS)[number]; row?: Planned }) {
+function Dinner({ row }: { row?: Planned }) {
   return (
-    <div className={`flex flex-col gap-3 rounded-2xl border-2 border-l-8 border-border p-3 ${MEAL_STYLE[meal].bar}`}>
-      <MealChip meal={meal} />
+    <div className="flex flex-col gap-3 rounded-2xl border-2 border-border p-3 sm:flex-row sm:items-center sm:justify-between">
       {row ? (
         <>
           <Link
@@ -204,8 +187,8 @@ function Slot({ meal, row }: { meal: (typeof MEALS)[number]; row?: Planned }) {
         </>
       ) : (
         <p className="text-lg text-muted">
-          Nothing planned.{" "}
-          <Link href={`/recipes?meal=${MEAL_STYLE[meal].label}`} className="no-print underline">
+          No dinner planned.{" "}
+          <Link href="/recipes?meal=Dinner" className="no-print underline">
             Find one
           </Link>
         </p>

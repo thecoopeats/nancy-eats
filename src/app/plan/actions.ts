@@ -4,11 +4,13 @@ import { and, eq, gte, lte } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { db } from "@/db";
-import { MEALS, plannedMeals, savedRecipes, type Meal } from "@/db/schema";
+import { plannedMeals, savedRecipes, type Meal } from "@/db/schema";
 import { addDays, isDay, today } from "@/lib/dates";
 import { requireUser } from "@/lib/require-user";
 import { COUNTRIES, getRecipe, isDailyLimit, suggestRecipes, type RecipeTile, type SearchFilters } from "@/lib/spoonacular";
 
+/** The planner only plans dinners. (The database still has a meal column, so older breakfast/lunch rows are just ignored.) */
+const DINNER: Meal = "dinner";
 type Slot = { date: string; meal: Meal };
 type PlanRecipe = {
   spoonacularId: number | null;
@@ -49,13 +51,12 @@ async function putInSlot(userId: string, slot: Slot, recipe: PlanRecipe) {
     .onConflictDoUpdate({ target: [plannedMeals.userId, plannedMeals.date, plannedMeals.meal], set: recipe });
 }
 
-/** Fill every empty slot in the chosen days and meals with a suggested recipe. */
+/** Fill every empty dinner in the chosen days with a suggested recipe. */
 export async function fillPlan(formData: FormData) {
   const user = await requireUser();
   let start = String(formData.get("start"));
   const days = Math.min(14, Math.max(1, Number(formData.get("days")) || 7));
-  const meals = MEALS.filter((m) => formData.get(m) === "on");
-  if (!isDay(start) || meals.length === 0) redirect("/plan");
+  if (!isDay(start)) redirect("/plan");
   // Never plan days that have already passed.
   if (start < today()) start = today();
   const end = addDays(start, days - 1);
@@ -66,7 +67,7 @@ export async function fillPlan(formData: FormData) {
     where: and(eq(plannedMeals.userId, user.id), gte(plannedMeals.date, start), lte(plannedMeals.date, end)),
     columns: { date: true, meal: true },
   });
-  const taken = new Set(existing.map((e) => `${e.date}|${e.meal}`));
+  const taken = new Set(existing.filter((e) => e.meal === DINNER).map((e) => e.date));
 
   const on = (k: string) => formData.get(k) === "on";
   const country = String(formData.get("country") ?? "");
@@ -82,14 +83,14 @@ export async function fillPlan(formData: FormData) {
 
   let problem: string | null = null;
   try {
-    for (const meal of meals) {
-      const empty: Slot[] = [];
-      for (let i = 0; i < days; i++) {
-        const date = addDays(start, i);
-        if (!taken.has(`${date}|${meal}`)) empty.push({ date, meal });
-      }
-      if (empty.length === 0) continue;
-      const ideas = await suggestRecipes(meal, empty.length, { filters });
+    const empty: Slot[] = [];
+    for (let i = 0; i < days; i++) {
+      const date = addDays(start, i);
+      if (!taken.has(date)) empty.push({ date, meal: DINNER });
+    }
+    if (empty.length > 0) {
+      // One search for all the empty days, so a whole week costs about the same as one search.
+      const ideas = await suggestRecipes(DINNER, empty.length, { filters });
       await Promise.all(empty.slice(0, ideas.length).map((slot, i) => putInSlot(user.id, slot, fromTile(ideas[i]))));
     }
   } catch (err) {
@@ -127,12 +128,12 @@ export async function clearMeal(id: string) {
 
 export type PlanTarget = { spoonacularId: number } | { savedRecipeId: string };
 
-/** Put a chosen recipe on a day and meal (from a recipe page). */
+/** Put a chosen recipe on a day's dinner (from a recipe page). */
 export async function addToPlan(target: PlanTarget, formData: FormData) {
   const user = await requireUser();
   const date = String(formData.get("date"));
-  const meal = String(formData.get("meal")) as Meal;
-  if (!isDay(date) || !MEALS.includes(meal)) return;
+  const meal = DINNER;
+  if (!isDay(date)) return;
 
   if ("spoonacularId" in target) {
     const r = await getRecipe(target.spoonacularId);
@@ -162,12 +163,12 @@ export async function addToPlan(target: PlanTarget, formData: FormData) {
   redirect(planView(date, 1));
 }
 
-/** Put a set of recipes from search on consecutive days, one meal a day (used by "Meals that share ingredients"). */
+/** Put a set of recipes from search on consecutive days, one dinner a day (used by "Meals that share ingredients"). */
 export async function addWeekToPlan(recipes: RecipeTile[], formData: FormData) {
   const user = await requireUser();
   const start = String(formData.get("start"));
-  const meal = String(formData.get("meal")) as Meal;
-  if (!isDay(start) || start < today() || !MEALS.includes(meal)) redirect("/plan");
+  const meal = DINNER;
+  if (!isDay(start) || start < today()) redirect("/plan");
   const list = recipes.slice(0, 14);
   await Promise.all(list.map((r, i) => putInSlot(user.id, { date: addDays(start, i), meal }, fromTile(r))));
   revalidatePath("/plan");
