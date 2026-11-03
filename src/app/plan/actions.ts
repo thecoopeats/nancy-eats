@@ -77,6 +77,7 @@ export async function fillPlan(formData: FormData) {
     seasonal: on("seasonal"),
     picky: on("picky"),
     comfort: on("comfort"),
+    avoid: String(formData.get("avoid") ?? "").slice(0, 200) || undefined,
   };
 
   let problem: string | null = null;

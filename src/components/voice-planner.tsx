@@ -1,10 +1,11 @@
 "use client";
 
 import { Mic, Square } from "lucide-react";
+import Link from "next/link";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useFormStatus } from "react-dom";
 import { fillPlan } from "@/app/plan/actions";
-import { understandPlanRequest, type VoicePlan } from "@/app/plan/voice-actions";
+import { understandPlanRequest, type VoicePlan, type VoiceSearch } from "@/app/plan/voice-actions";
 import { Button } from "@/components/button";
 
 // The browser's speech-to-text (Chrome, Edge, Safari). Not in TypeScript's built-in types yet.
@@ -40,6 +41,7 @@ export function VoicePlanner() {
   const [listening, setListening] = useState(false);
   const [text, setText] = useState("");
   const [plan, setPlan] = useState<VoicePlan | null>(null);
+  const [search, setSearch] = useState<VoiceSearch | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [thinking, startThinking] = useTransition();
   const recognition = useRef<Recognition | null>(null);
@@ -54,26 +56,29 @@ export function VoicePlanner() {
   function understand(words: string) {
     setMessage(null);
     setPlan(null);
+    setSearch(null);
     if (!words.trim()) {
       setMessage("I didn't catch anything. Please try again.");
       return;
     }
     startThinking(async () => {
       const result = await understandPlanRequest(words);
-      if (result.ok) setPlan(result.plan);
-      else setMessage(result.message);
+      if (!result.ok) setMessage(result.message);
+      else if (result.kind === "search") setSearch(result.search);
+      else setPlan(result.plan);
     });
   }
 
   function listen() {
     setMessage(null);
     setPlan(null);
+    setSearch(null);
     const Ctor = getRecognition();
     if (!Ctor) {
       // Some phone browsers can't listen directly, but every phone keyboard has its own microphone key.
       typingBox.current?.focus();
       setMessage(
-        "To talk: tap the little microphone on your keyboard, say what you'd like, then tap \"Make my plan\".",
+        "To talk: tap the little microphone on your keyboard, say what you'd like, then tap \"Go\".",
       );
       return;
     }
@@ -154,7 +159,7 @@ export function VoicePlanner() {
   return (
     <section className="no-print space-y-5 rounded-3xl border-2 border-accent bg-card p-5 shadow-soft">
       <div className="flex flex-col items-center gap-3 text-center">
-        <h2 className="text-2xl font-bold">Ask for a meal plan</h2>
+        <h2 className="text-2xl font-bold">Ask for a meal plan or a recipe</h2>
         <button
           type="button"
           onClick={listening ? stop : listen}
@@ -167,7 +172,9 @@ export function VoicePlanner() {
         <p className="text-xl font-bold" aria-live="polite">
           {listening ? "Listening… tap when you\u2019re done" : thinking ? "Thinking…" : "Tap the microphone and talk"}
         </p>
-        <p className="text-lg text-muted">Try: &ldquo;Plan healthy dinners for this week.&rdquo;</p>
+        <p className="text-lg text-muted">
+          Try: &ldquo;Plan healthy dinners for this week&rdquo; or &ldquo;Find a chicken soup recipe.&rdquo;
+        </p>
       </div>
 
       <form
@@ -190,7 +197,7 @@ export function VoicePlanner() {
         </label>
         {!listening && (
           <Button type="submit" disabled={thinking || !text.trim()} className="w-full sm:w-auto">
-            {thinking ? "Thinking…" : "Make my plan"}
+            {thinking ? "Thinking…" : "Go"}
           </Button>
         )}
       </form>
@@ -201,12 +208,37 @@ export function VoicePlanner() {
         </p>
       )}
 
+      {search && (
+        <div className="space-y-4 rounded-2xl border-2 border-accent bg-blush p-4">
+          <p className="text-2xl font-bold">{search.summary}</p>
+          <div className="flex flex-wrap gap-3">
+            <Link
+              href={search.href}
+              className="inline-flex min-h-14 items-center justify-center rounded-full bg-accent px-7 text-xl font-bold text-accent-ink no-underline shadow-soft hover:opacity-90"
+            >
+              Yes, show recipes
+            </Link>
+            <button
+              type="button"
+              onClick={() => {
+                setSearch(null);
+                setText("");
+              }}
+              className="min-h-14 rounded-full px-6 text-xl font-bold text-muted underline"
+            >
+              No, try again
+            </button>
+          </div>
+        </div>
+      )}
+
       {plan && (
         <form action={fillPlan} className="space-y-4 rounded-2xl border-2 border-accent bg-blush p-4">
           <p className="text-2xl font-bold">{plan.summary}</p>
           <input type="hidden" name="start" value={plan.start} />
           <input type="hidden" name="days" value={plan.days} />
           <input type="hidden" name="country" value={plan.country} />
+          <input type="hidden" name="avoid" value={plan.avoid} />
           {plan.meals.map((m) => (
             <input key={m} type="hidden" name={m} value="on" />
           ))}
